@@ -1,0 +1,196 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: userId (auth.uid)
+// Fields:
+//   - uid: string (required)
+//   - displayName: string (required, 1-50 chars)
+//   - photoURL: string (optional, URL)
+//   - email: string (optional, email)
+//   - friends: list of strings (optional, UIDs)
+//
+// Collection: tasks
+// Document ID: auto-generated
+// Fields:
+//   - userId: string (required, must match creator)
+//   - title: string (required, 1-100 chars)
+//   - icon: string (required, preset name)
+//   - createdAt: string (required, ISO 8601)
+//
+// Collection: logs
+// Document ID: auto-generated
+// Fields:
+//   - userId: string (required, must match creator)
+//   - taskId: string (required)
+//   - date: string (required, YYYY-MM-DD)
+//   - earnedAt: string (required, ISO 8601)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "nyxnight.lake@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDate(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}$");
+    }
+
+    function isValidDateTime(dateTimeStr) {
+      return dateTimeStr is string && dateTimeStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // Domain Validators
+    
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'displayName']) &&
+             data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 50 &&
+             (!('email' in data) || isValidEmail(data.email)) &&
+             (!('friends' in data) || data.friends is list) &&
+             (!('role' in data) || data.role in ['admin', 'user', 'group-admin']) &&
+             (!('groupId' in data) || (data.groupId is string && data.groupId.size() <= 50)) &&
+             (!('theme' in data) || data.theme in ['light', 'dark']);
+    }
+
+    function isValidGroup(data) {
+      return data.keys().hasAll(['name', 'adminId', 'members', 'inviteCode', 'createdAt']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+             data.adminId == request.auth.uid &&
+             data.members is list && data.members.size() >= 1 &&
+             data.inviteCode is string && data.inviteCode.size() == 6 &&
+             isValidDateTime(data.createdAt);
+    }
+
+    function isValidTask(data) {
+      return data.keys().hasAll(['userId', 'title', 'icon', 'frequency', 'createdAt']) &&
+             (data.userId == request.auth.uid || (data.isGlobal == true && isAdmin())) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+             data.icon is string &&
+             data.frequency in ['daily', 'weekly'] &&
+             isValidDateTime(data.createdAt) &&
+             (!('isGlobal' in data) || data.isGlobal is bool) &&
+             (!('isDailyChallenge' in data) || data.isDailyChallenge is bool) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 500)) &&
+             (!('targetCount' in data) || (data.targetCount is int && data.targetCount >= 1));
+    }
+
+    function isValidInteraction(data) {
+      return data.keys().hasAll(['fromUserId', 'toUserId', 'type', 'timestamp', 'read']) &&
+             data.fromUserId == request.auth.uid &&
+             data.toUserId is string &&
+             data.type in ['high-five', 'message'] &&
+             isValidDateTime(data.timestamp) &&
+             data.read is bool;
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['userId', 'taskId', 'date', 'earnedAt']) &&
+             data.userId == request.auth.uid &&
+             data.taskId is string &&
+             isValidDate(data.date) &&
+             isValidDateTime(data.earnedAt) &&
+             (!('count' in data) || (data.count is int && data.count >= 1));
+    }
+
+    function isValidInvite(data) {
+      return data.keys().hasAll(['inviterId', 'createdAt']) &&
+             data.inviterId == request.auth.uid &&
+             isValidDateTime(data.createdAt) &&
+             (!('used' in data) || data.used is bool);
+    }
+
+    function isValidFeedback(data) {
+      return data.keys().hasAll(['userId', 'userEmail', 'content', 'type', 'timestamp', 'status']) &&
+             data.userId == request.auth.uid &&
+             isValidEmail(data.userEmail) &&
+             data.content is string && data.content.size() >= 1 && data.content.size() <= 2000 &&
+             data.type in ['feature', 'issue'] &&
+             isValidDateTime(data.timestamp) &&
+             data.status == 'pending';
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated(); // Allow reading profiles for friend discovery and admin view
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && (!('role' in request.resource.data) || request.resource.data.role == resource.data.role)) || isAdmin();
+    }
+
+    match /tasks/{taskId} {
+      allow list: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidTask(request.resource.data);
+      allow update: if (isDocOwner() || isAdmin()) && isValidTask(request.resource.data);
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /logs/{logId} {
+      allow list: if isAuthenticated() || isAdmin();
+      allow read: if isAuthenticated() || isAdmin();
+      allow create: if isAuthenticated() && isValidLog(request.resource.data);
+      allow update: if isDocOwner() && isValidLog(request.resource.data);
+      allow delete: if isDocOwner() || isAdmin();
+    }
+
+    match /interactions/{interactionId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.toUserId || request.auth.uid == resource.data.fromUserId || isAdmin());
+      allow create: if isAuthenticated() && isValidInteraction(request.resource.data);
+      allow update: if isAuthenticated() && request.auth.uid == resource.data.toUserId && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.toUserId || request.auth.uid == resource.data.fromUserId || isAdmin());
+    }
+
+    match /invites/{inviteId} {
+      allow read: if true; // Anyone with the link can read the invite to see who invited them
+      allow create: if isAuthenticated() && isValidInvite(request.resource.data);
+      allow update: if isAuthenticated(); // Allow marking as used
+    }
+
+    match /feedback/{feedbackId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && isValidFeedback(request.resource.data);
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /groups/{groupId} {
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.members || isAdmin());
+      allow create: if isAuthenticated() && isValidGroup(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == resource.data.adminId && isValidGroup(request.resource.data)) ||
+        (request.auth.uid in request.resource.data.members && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['members']))
+      );
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.adminId || isAdmin());
+    }
+  }
+}

@@ -1,0 +1,55 @@
+# CareStickers: PostgreSQL + API (serves Vite build from dist/).
+#
+# Full stack (DB created on first volume init + app):
+#   ./scripts/docker-up.sh
+#   ./scripts/docker-up.ps1
+#   npm run docker:up
+#
+# Postgres only (run `npm run dev` on host; point DATABASE_URL at localhost:5432):
+#   docker compose up -d db
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-care}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-care}
+      POSTGRES_DB: ${POSTGRES_DB:-carestickers}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - carestickers_pg:/var/lib/postgresql/data
+      - ./server/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 3s
+      timeout: 5s
+      retries: 15
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "${APP_PORT:-3001}:3001"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://${POSTGRES_USER:-care}:${POSTGRES_PASSWORD:-care}@db:5432/${POSTGRES_DB:-carestickers}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
+      PORT: "3001"
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/api/auth/google/callback}
+      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      APPLY_SCHEMA: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  carestickers_pg:

@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and social connections",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "email": { "type": "string" },
+        "friends": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["uid", "displayName"]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A self-care task that can earn a sticker",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "icon": { "type": "string" },
+        "frequency": { "type": "string", "enum": ["daily", "weekly"] },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "icon", "frequency"]
+    },
+    "Interaction": {
+      "title": "Interaction",
+      "description": "Social interactions between friends",
+      "type": "object",
+      "properties": {
+        "fromUserId": { "type": "string" },
+        "toUserId": { "type": "string" },
+        "type": { "type": "string", "enum": ["high-five", "message"] },
+        "content": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "read": { "type": "boolean" }
+      },
+      "required": ["fromUserId", "toUserId", "type", "timestamp", "read"]
+    },
+    "StickerLog": {
+      "title": "StickerLog",
+      "description": "A record of a sticker earned for a task on a specific date",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "taskId": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "earnedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "taskId", "date"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "/tasks/{taskId}": {
+      "schema": "Task",
+      "description": "User-defined self-care tasks"
+    },
+    "/logs/{logId}": {
+      "schema": "StickerLog",
+      "description": "Logs of earned stickers"
+    },
+    "/interactions/{interactionId}": {
+      "schema": "Interaction",
+      "description": "Social interactions"
+    }
+  }
+}

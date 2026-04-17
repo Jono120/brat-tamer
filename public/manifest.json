@@ -1,0 +1,21 @@
+{
+  "name": "CareStickers",
+  "short_name": "CareStickers",
+  "description": "A shared self-care sticker chart for friends.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#FEF9EF",
+  "theme_color": "#FF865E",
+  "icons": [
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=care&backgroundColor=FF865E",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "https://api.dicebear.com/7.x/shapes/svg?seed=care&backgroundColor=FF865E",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
