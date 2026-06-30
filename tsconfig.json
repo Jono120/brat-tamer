@@ -1,5 +1,5 @@
 {
-  "include": ["src", "server", "capacitor.config.ts"],
+  "include": ["src", "server", "utils", "capacitor.config.ts"],
   "exclude": ["server/test", "server/**/*test.ts", "server/**/*spec.ts"],
   "compilerOptions": {
     "target": "ES2022",

@@ -1,12 +1,12 @@
-const TOKEN_KEY = "carestickers_token";
+import { supabase } from "../lib/supabaseClient";
 
-export function getToken(): string | null {
-  return localStorage.getItem(TOKEN_KEY);
-}
-
-export function setToken(token: string | null): void {
-  if (token) localStorage.setItem(TOKEN_KEY, token);
-  else localStorage.removeItem(TOKEN_KEY);
+/**
+ * Access token for the Express API comes from the current Supabase session rather than a
+ * locally-stored app JWT. supabase-js handles persistence and refresh.
+ */
+export async function getAccessToken(): Promise<string | null> {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token ?? null;
 }
 
 function apiBase(): string {
@@ -27,7 +27,7 @@ export async function apiFetch(
   path: string,
   options: RequestInit = {},
 ): Promise<unknown> {
-  const token = getToken();
+  const token = await getAccessToken();
   const headers = new Headers(options.headers);
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const body = options.body;
@@ -40,7 +40,7 @@ export async function apiFetch(
   }
   const res = await fetch(`${apiBase()}${path}`, { ...options, headers });
   if (res.status === 401) {
-    setToken(null);
+    await supabase.auth.signOut();
     throw new Error("Unauthorized");
   }
   const data = await parseBody(res);

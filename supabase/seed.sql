@@ -1,0 +1,24 @@
+-- CareStickers seed data.
+--
+-- Runs automatically after migrations on `supabase db reset` (and `supabase db push --seed`),
+-- per [db.seed] in supabase/config.toml.
+--
+-- The app currently has no hard-coded global/seed tasks: admins create global goals and daily
+-- challenges at runtime through the Admin Portal. This file is intentionally a template so that
+-- any future global seed data lives in one canonical place instead of ad-hoc INSERTs.
+--
+-- Tasks require a user_id, and after 0002_auth_link.sql every public.users row is keyed to an
+-- auth.users row. To seed global tasks you therefore need a seed auth user to own them. The
+-- simplest local approach:
+--   1. `supabase start`
+--   2. Create an admin user (e.g. via Studio Auth > Add user, or the email/password sign-up flow).
+--      Put that email in ADMIN_EMAILS so the server treats it as admin.
+--   3. Capture its UUID and uncomment/extend the template below (or convert it into a migration).
+--
+-- Example (replace the UUID with a real auth.users id, then uncomment):
+--
+-- INSERT INTO public.tasks (id, user_id, title, icon, frequency, created_at, is_global, is_daily_challenge, description, target_count)
+-- VALUES
+--   (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'Drink water', 'droplets', 'daily', NOW(), TRUE, FALSE, 'Stay hydrated', 8),
+--   (gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'Move your body', 'zap',      'daily', NOW(), TRUE, FALSE, 'A little movement counts', 1)
+-- ON CONFLICT DO NOTHING;

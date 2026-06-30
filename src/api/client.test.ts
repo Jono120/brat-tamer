@@ -1,28 +1,41 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiFetch, setToken, getToken, api } from "./client";
+
+// Token now comes from the Supabase session, not localStorage.
+const { getSession, signOut } = vi.hoisted(() => ({
+  getSession: vi.fn(),
+  signOut: vi.fn(),
+}));
+
+vi.mock("../lib/supabaseClient", () => ({
+  supabase: { auth: { getSession, signOut } },
+}));
+
+import { apiFetch, api, getAccessToken } from "./client";
 
 describe("api client", () => {
   const fetchMock = vi.fn();
 
   beforeEach(() => {
-    localStorage.clear();
     vi.stubGlobal("fetch", fetchMock);
+    fetchMock.mockReset();
+    getSession.mockReset();
+    signOut.mockReset();
+    getSession.mockResolvedValue({
+      data: { session: { access_token: "jwt-token" } },
+    });
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it("getToken / setToken round-trip", () => {
-    expect(getToken()).toBeNull();
-    setToken("tok");
-    expect(getToken()).toBe("tok");
-    setToken(null);
-    expect(getToken()).toBeNull();
+  it("getAccessToken returns the session access token", async () => {
+    expect(await getAccessToken()).toBe("jwt-token");
+    getSession.mockResolvedValueOnce({ data: { session: null } });
+    expect(await getAccessToken()).toBeNull();
   });
 
-  it("apiFetch sends Authorization when a token is stored", async () => {
-    setToken("jwt-token");
+  it("apiFetch sends Authorization from the Supabase session", async () => {
     fetchMock.mockResolvedValue({
       ok: true,
       status: 200,
@@ -37,8 +50,7 @@ describe("api client", () => {
     expect(headers.get("Authorization")).toBe("Bearer jwt-token");
   });
 
-  it("clears token on 401", async () => {
-    setToken("bad");
+  it("signs out on 401", async () => {
     fetchMock.mockResolvedValue({
       ok: false,
       status: 401,
@@ -46,11 +58,10 @@ describe("api client", () => {
     });
 
     await expect(api.get("/api/me")).rejects.toThrow(/Unauthorized/);
-    expect(getToken()).toBeNull();
+    expect(signOut).toHaveBeenCalled();
   });
 
   it("throws with server error body", async () => {
-    setToken("ok");
     fetchMock.mockResolvedValue({
       ok: false,
       status: 400,
@@ -58,5 +69,9 @@ describe("api client", () => {
     });
 
     await expect(api.post("/api/x", {})).rejects.toThrow(/Bad input/);
+  });
+
+  it("apiFetch is exported", () => {
+    expect(typeof apiFetch).toBe("function");
   });
 });

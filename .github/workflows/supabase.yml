@@ -1,0 +1,80 @@
+name: Supabase
+
+# Applies database migrations to the linked Supabase project on merge to main, and on PRs
+# guards against schema drift (lint + generated-types check).
+#
+# Required repository secrets:
+#   SUPABASE_ACCESS_TOKEN   personal access token (Account > Access Tokens)
+#   SUPABASE_DB_PASSWORD    database password for the linked project
+#   SUPABASE_PROJECT_ID     the project ref (e.g. abcdefghijklmnopqrst)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - ".github/workflows/supabase.yml"
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "src/types/database.ts"
+      - ".github/workflows/supabase.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  drift-check:
+    name: Lint + types drift guard
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Lint migrations
+        run: supabase db lint --linked
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+        continue-on-error: true
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Verify generated types are committed and up to date
+        run: |
+          supabase gen types typescript --linked > src/types/database.generated.ts
+          if ! diff -q src/types/database.ts src/types/database.generated.ts; then
+            echo "::error::src/types/database.ts is out of date. Run 'npm run db:types' and commit the result."
+            diff src/types/database.ts src/types/database.generated.ts || true
+            exit 1
+          fi
+
+  db-push:
+    name: Apply migrations
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Link project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_ID"
+        env:
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+      - name: Push migrations
+        run: supabase db push
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}

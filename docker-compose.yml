@@ -19,7 +19,10 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - carestickers_pg:/var/lib/postgresql/data
-      - ./server/schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
+      # Canonical app-table schema (single source). 0002_auth_link.sql is intentionally NOT
+      # mounted: it references the Supabase-managed `auth` schema, which this plain Postgres
+      # container does not have. For full Supabase Auth parity locally, use `supabase start`.
+      - ./supabase/migrations/0001_initial_schema.sql:/docker-entrypoint-initdb.d/10-schema.sql:ro
     healthcheck:
       test: ["CMD-SHELL", 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
       interval: 3s
@@ -36,16 +39,15 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgres://${POSTGRES_USER:-care}:${POSTGRES_PASSWORD:-care}@db:5432/${POSTGRES_DB:-carestickers}
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      SESSION_SECRET: ${SESSION_SECRET:-change-me-in-production}
+      # Local Docker Postgres does not speak TLS; disable SSL for the in-network connection.
+      PGSSL: ${PGSSL:-disable}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3001}
       PORT: "3001"
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
-      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
-      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
-      GOOGLE_CALLBACK_URL: ${GOOGLE_CALLBACK_URL:-http://localhost:3001/api/auth/google/callback}
-      APPLE_CLIENT_ID: ${APPLE_CLIENT_ID:-}
+      # Supabase Auth verification: the server validates access tokens against the project JWKS.
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_JWKS_URL: ${SUPABASE_JWKS_URL:-}
       APPLY_SCHEMA: "false"
     depends_on:
       db:

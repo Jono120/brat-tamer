@@ -1,12 +1,8 @@
-import "dotenv/config";
-import bcrypt from "bcrypt";
+import dotenv from "dotenv";
+dotenv.config();
+dotenv.config({ path: ".env.local", override: true });
 import cors from "cors";
 import express from "express";
-import session from "express-session";
-import jwt from "jsonwebtoken";
-import * as jose from "jose";
-import passport from "passport";
-import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
@@ -20,6 +16,7 @@ import {
   mapTaskRow,
   mapUserRow,
 } from "./mappers.js";
+import { jwtAuth, warnIfSupabaseAuthMissing } from "./supabaseServer.js";
 
 type TaskPayload = {
   title: string;
@@ -33,10 +30,7 @@ type TaskPayload = {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-const JWT_SECRET = process.env.JWT_SECRET;
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:3000";
 const PORT = Number(process.env.PORT) || 3001;
-const SALT_ROUNDS = 10;
 
 function adminEmails(): Set<string> {
   return new Set(
@@ -67,33 +61,33 @@ async function loadProfile(userId: string) {
   return mapUserRow(u.rows[0], friends);
 }
 
-function jwtAuth(
-  req: express.Request,
-  res: express.Response,
-  next: express.NextFunction,
-) {
-  const h = req.headers.authorization;
-  if (!h?.startsWith("Bearer ")) {
-    res.status(401).json({ error: "Unauthorized" });
-    return;
-  }
-  if (!JWT_SECRET) {
-    res.status(500).json({ error: "JWT_SECRET not configured" });
-    return;
-  }
-  try {
-    const p = jwt.verify(h.slice(7), JWT_SECRET) as {
-      sub: string;
-      email: string;
-    };
-    (req as express.Request & { userId: string; userEmail: string }).userId =
-      p.sub;
-    (req as express.Request & { userId: string; userEmail: string }).userEmail =
-      p.email;
-    next();
-  } catch {
-    res.status(401).json({ error: "Invalid token" });
-  }
+/**
+ * Ensure a public.users profile row exists for the authenticated Supabase user.
+ * On Supabase the `handle_new_user` trigger creates this row automatically, but this is a safe
+ * net for the first request after sign-up (and for local Postgres setups without the trigger).
+ */
+async function ensureUserRow(
+  userId: string,
+  email: string | null | undefined,
+): Promise<void> {
+  const existing = await pool.query("SELECT id FROM users WHERE id = $1", [
+    userId,
+  ]);
+  if (existing.rows.length > 0) return;
+  const safeEmail = email || `user-${userId}@no-email.local`;
+  const role = isAdminEmail(safeEmail) ? "admin" : "user";
+  await pool.query(
+    `INSERT INTO users (id, email, display_name, photo_url, role, has_completed_onboarding)
+     VALUES ($1, $2, $3, $4, $5, false)
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      userId,
+      safeEmail,
+      safeEmail.split("@")[0] || "Friend",
+      `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+      role,
+    ],
+  );
 }
 
 async function requireAdmin(
@@ -101,7 +95,7 @@ async function requireAdmin(
   res: express.Response,
   next: express.NextFunction,
 ) {
-  const uid = (req as express.Request & { userId: string }).userId;
+  const uid = req.userId!;
   const r = await pool.query("SELECT email, role FROM users WHERE id = $1", [
     uid,
   ]);
@@ -118,9 +112,7 @@ async function requireAdmin(
 }
 
 async function main() {
-  if (!JWT_SECRET) {
-    console.warn("Warning: JWT_SECRET is not set.");
-  }
+  warnIfSupabaseAuthMissing();
   if (!process.env.DATABASE_URL) {
     console.error("DATABASE_URL is required.");
     process.exit(1);
@@ -137,293 +129,15 @@ async function main() {
     }),
   );
   app.use(express.json({ limit: "6mb" }));
-  app.use(
-    session({
-      secret:
-        process.env.SESSION_SECRET || JWT_SECRET || "carestickers-session",
-      resave: false,
-      saveUninitialized: false,
-    }),
-  );
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  passport.serializeUser((user, done) => {
-    done(null, user.id);
-  });
-  passport.deserializeUser(async (id: string, done) => {
-    try {
-      const r = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
-      done(null, r.rows[0] || null);
-    } catch (e) {
-      done(e, null);
-    }
-  });
-
-  const googleId = process.env.GOOGLE_CLIENT_ID;
-  const googleSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const googleCallback =
-    process.env.GOOGLE_CALLBACK_URL ||
-    `http://localhost:${PORT}/api/auth/google/callback`;
-
-  if (googleId && googleSecret) {
-    passport.use(
-      new GoogleStrategy(
-        {
-          clientID: googleId,
-          clientSecret: googleSecret,
-          callbackURL: googleCallback,
-        },
-        async (_access, _refresh, profile, done) => {
-          try {
-            const email = profile.emails?.[0]?.value;
-            const sub = profile.id;
-            const displayName =
-              profile.displayName || email?.split("@")[0] || "Friend";
-            const photo = profile.photos?.[0]?.value || "";
-            if (!email) {
-              done(new Error("No email from Google"));
-              return;
-            }
-
-            const byGoogle = await pool.query(
-              "SELECT * FROM users WHERE google_sub = $1",
-              [sub],
-            );
-            if (byGoogle.rows.length > 0) {
-              done(null, { id: byGoogle.rows[0].id });
-              return;
-            }
-
-            const byEmail = await pool.query(
-              "SELECT * FROM users WHERE lower(email) = lower($1)",
-              [email],
-            );
-            if (byEmail.rows.length > 0) {
-              await pool.query(
-                "UPDATE users SET google_sub = $1, photo_url = COALESCE(photo_url, $2), display_name = COALESCE(NULLIF(display_name, ''), $3) WHERE id = $4",
-                [sub, photo, displayName, byEmail.rows[0].id],
-              );
-              done(null, { id: byEmail.rows[0].id });
-              return;
-            }
-
-            const role = isAdminEmail(email) ? "admin" : "user";
-            const ins = await pool.query(
-              `INSERT INTO users (email, password_hash, display_name, photo_url, role, has_completed_onboarding, google_sub)
-               VALUES ($1, NULL, $2, $3, $4, false, $5) RETURNING id`,
-              [
-                email,
-                displayName,
-                photo ||
-                  `https://api.dicebear.com/7.x/avataaars/svg?seed=${sub}`,
-                role,
-                sub,
-              ],
-            );
-            done(null, { id: ins.rows[0].id });
-          } catch (e) {
-            done(e as Error, undefined);
-          }
-        },
-      ),
-    );
-  }
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
-  function signToken(userId: string, email: string) {
-    if (!JWT_SECRET) throw new Error("JWT_SECRET");
-    return jwt.sign({ sub: userId, email }, JWT_SECRET, { expiresIn: "7d" });
-  }
-
-  app.post("/api/auth/register", async (req, res) => {
-    try {
-      const { email, password } = req.body as {
-        email?: string;
-        password?: string;
-      };
-      if (!email || !password || password.length < 8) {
-        res
-          .status(400)
-          .json({ error: "Valid email and password (8+ chars) required" });
-        return;
-      }
-      const exists = await pool.query(
-        "SELECT id FROM users WHERE lower(email) = lower($1)",
-        [email],
-      );
-      if (exists.rows.length > 0) {
-        res.status(409).json({ error: "Email already registered" });
-        return;
-      }
-      const hash = await bcrypt.hash(password, SALT_ROUNDS);
-      const role = isAdminEmail(email) ? "admin" : "user";
-      const ins = await pool.query(
-        `INSERT INTO users (email, password_hash, display_name, photo_url, role, has_completed_onboarding)
-         VALUES ($1, $2, $3, $4, $5, false) RETURNING id, email`,
-        [
-          email,
-          hash,
-          email.split("@")[0],
-          `https://api.dicebear.com/7.x/avataaars/svg?seed=${email}`,
-          role,
-        ],
-      );
-      const row = ins.rows[0];
-      const token = signToken(String(row.id), String(row.email));
-      res.json({ token });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: "Registration failed" });
-    }
-  });
-
-  app.post("/api/auth/login", async (req, res) => {
-    try {
-      const { email, password } = req.body as {
-        email?: string;
-        password?: string;
-      };
-      if (!email || !password) {
-        res.status(400).json({ error: "Email and password required" });
-        return;
-      }
-      const r = await pool.query(
-        "SELECT * FROM users WHERE lower(email) = lower($1)",
-        [email],
-      );
-      if (r.rows.length === 0 || !r.rows[0].password_hash) {
-        res.status(401).json({ error: "Invalid credentials" });
-        return;
-      }
-      const ok = await bcrypt.compare(
-        password,
-        String(r.rows[0].password_hash),
-      );
-      if (!ok) {
-        res.status(401).json({ error: "Invalid credentials" });
-        return;
-      }
-      const row = r.rows[0];
-      const token = signToken(String(row.id), String(row.email));
-      res.json({ token });
-    } catch (e) {
-      console.error(e);
-      res.status(500).json({ error: "Login failed" });
-    }
-  });
-
-  app.post("/api/auth/apple", async (req, res) => {
-    try {
-      const { idToken } = req.body as { idToken?: string };
-      const aud = process.env.APPLE_CLIENT_ID;
-      if (!idToken || !aud) {
-        res.status(400).json({ error: "idToken and APPLE_CLIENT_ID required" });
-        return;
-      }
-      const JWKS = jose.createRemoteJWKSet(
-        new URL("https://appleid.apple.com/auth/keys"),
-      );
-      const { payload } = await jose.jwtVerify(idToken, JWKS, {
-        issuer: "https://appleid.apple.com",
-        audience: aud,
-      });
-      const sub = String(payload.sub);
-      const email = payload.email != null ? String(payload.email) : null;
-
-      const byApple = await pool.query(
-        "SELECT * FROM users WHERE apple_sub = $1",
-        [sub],
-      );
-      if (byApple.rows.length > 0) {
-        const row = byApple.rows[0];
-        const token = signToken(String(row.id), String(row.email));
-        res.json({ token });
-        return;
-      }
-
-      if (email) {
-        const byEmail = await pool.query(
-          "SELECT * FROM users WHERE lower(email) = lower($1)",
-          [email],
-        );
-        if (byEmail.rows.length > 0) {
-          await pool.query("UPDATE users SET apple_sub = $1 WHERE id = $2", [
-            sub,
-            byEmail.rows[0].id,
-          ]);
-          const row = byEmail.rows[0];
-          const token = signToken(String(row.id), String(row.email));
-          res.json({ token });
-          return;
-        }
-      }
-
-      const fakeEmail =
-        email || `apple-${sub.slice(0, 12)}@privaterelay.apple.local`;
-      const role = email && isAdminEmail(email) ? "admin" : "user";
-      const ins = await pool.query(
-        `INSERT INTO users (email, password_hash, display_name, photo_url, role, has_completed_onboarding, apple_sub)
-         VALUES ($1, NULL, $2, $3, $4, false, $5) RETURNING id, email`,
-        [
-          fakeEmail,
-          "Friend",
-          `https://api.dicebear.com/7.x/avataaars/svg?seed=${sub}`,
-          role,
-          sub,
-        ],
-      );
-      const row = ins.rows[0];
-      const token = signToken(String(row.id), String(row.email));
-      res.json({ token });
-    } catch (e) {
-      console.error(e);
-      res.status(401).json({ error: "Apple sign-in failed" });
-    }
-  });
-
-  if (googleId && googleSecret) {
-    app.get(
-      "/api/auth/google",
-      passport.authenticate("google", { scope: ["profile", "email"] }),
-    );
-    app.get(
-      "/api/auth/google/callback",
-      passport.authenticate("google", {
-        failureRedirect: `${FRONTEND_URL}/?error=google`,
-      }),
-      (req, res) => {
-        const row = req.user as { id?: string; email?: string } | undefined;
-        const id = row?.id != null ? String(row.id) : "";
-        if (!id || !JWT_SECRET) {
-          res.redirect(`${FRONTEND_URL}/?error=google`);
-          return;
-        }
-        pool
-          .query("SELECT email FROM users WHERE id = $1", [id])
-          .then((r) => {
-            const email = r.rows[0]?.email || row?.email || "";
-            const token = signToken(id, String(email));
-            res.redirect(`${FRONTEND_URL}/?token=${encodeURIComponent(token)}`);
-          })
-          .catch(() => res.redirect(`${FRONTEND_URL}/?error=google`));
-      },
-    );
-  } else {
-    app.get("/api/auth/google", (_req, res) => {
-      res
-        .status(501)
-        .json({
-          error:
-            "Google OAuth is not configured (set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)",
-        });
-    });
-  }
-
   app.get("/api/me", jwtAuth, async (req, res) => {
     try {
-      const uid = (req as express.Request & { userId: string }).userId;
+      const r = req as express.Request & { userId: string; userEmail: string };
+      const uid = r.userId;
+      // Safety net: provision the profile row if the Supabase trigger has not yet run.
+      await ensureUserRow(uid, r.userEmail);
       const profile = await loadProfile(uid);
       if (!profile) {
         res.status(404).json({ error: "User not found" });

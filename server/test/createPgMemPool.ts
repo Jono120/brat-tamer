@@ -22,7 +22,16 @@ export async function createPgMemPoolFromSchema(): Promise<pg.Pool> {
     });
   });
 
-  const schemaPath = path.join(__dirname, "..", "schema.sql");
+  // Load only the canonical app-table migration (0001). 0002_auth_link.sql references the
+  // Supabase-managed `auth` schema, which pg-mem does not provide, so it is deliberately excluded.
+  const schemaPath = path.join(
+    __dirname,
+    "..",
+    "..",
+    "supabase",
+    "migrations",
+    "0001_initial_schema.sql",
+  );
   const sql = fs.readFileSync(schemaPath, "utf8");
   await db.public.many(sql);
 

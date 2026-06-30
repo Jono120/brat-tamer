@@ -8,6 +8,7 @@ export default defineConfig(({ mode }) => {
   const capacitorBuild = process.env.CAPACITOR_BUILD === "true";
   return {
     base: capacitorBuild ? "./" : "/",
+    envPrefix: ["VITE_", "NEXT_PUBLIC_"],
     plugins: [react(), tailwindcss()],
     define: {
       //'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),

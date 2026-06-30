@@ -10,14 +10,14 @@ CareStickers is a social self-care tracking application that allows users to set
 - **Social Interaction**: Invite friends, share progress, and send high-fives.
 - **Group Management**: Create or join groups using invite codes. Includes a "Group Admin" role for creators.
 - **Admin Portal**: Dashboard for managing community goals, tracking overall progress, and searching for specific users.
-- **Multi-Auth**: Sign in with email and password, Google (OAuth), or Apple (Sign in with Apple on the web).
+- **Multi-Auth**: Sign in with email and password, magic link, Google, or Apple — all via Supabase Auth.
 - **Onboarding**: Interactive tutorial for new users.
 
 ## Technical Stack
 
 - **Frontend**: React 19, TypeScript, Vite, Tailwind CSS.
-- **Backend**: Node.js, Express, PostgreSQL (`pg`), JWT sessions.
-- **Auth**: bcrypt for password hashes; Passport for Google OAuth; Apple ID tokens verified with Apple’s JWKS.
+- **Backend**: Node.js, Express, managed PostgreSQL on **Supabase** (`pg`).
+- **Auth**: **Supabase Auth (GoTrue)** is the source of truth — email/password + magic link, Google and Apple. The frontend uses `@supabase/supabase-js`; the Express API verifies Supabase access tokens via **`@supabase/server`** (JWKS + RLS-scoped clients). Edge Functions use `withSupabase` from the same package. See [docs/SUPABASE.md](docs/SUPABASE.md).
 - **Animations**: Framer Motion (`motion/react`) for transitions and progress animations.
 - **Icons**: Lucide React.
 - **Native shells**: [Capacitor](https://capacitorjs.com/) (`ios/`, `android/`) wraps the web UI for App Store and Google Play builds.
@@ -27,11 +27,15 @@ CareStickers is a social self-care tracking application that allows users to set
 | Area                            | Location                                                  |
 | ------------------------------- | --------------------------------------------------------- |
 | React UI & state                | `src/App.tsx`, `src/components/`                          |
-| API client & token storage      | `src/api/client.ts`, `src/api/careApi.ts`                 |
-| Shared types                    | `src/types.ts`                                            |
+| Supabase browser client         | `src/lib/supabaseClient.ts`                               |
+| API client (session token)      | `src/api/client.ts`, `src/api/careApi.ts`                 |
+| Shared types                    | `src/types.ts`, generated DB types `src/types/database.ts` |
 | HTTP API & routes               | `server/src/index.ts`                                     |
-| PostgreSQL schema               | `server/schema.sql`                                       |
-| DB pool & optional auto-migrate | `server/src/db.ts`                                        |
+| `@supabase/server` (Express)    | `server/src/supabaseServer.ts`                            |
+| Edge Functions                  | `supabase/functions/`                                     |
+| Database schema (canonical)     | `supabase/migrations/` (`0001` app tables, `0002` auth link) |
+| DB pool, SSL & optional auto-migrate | `server/src/db.ts`                                   |
+| Supabase CLI config & seed      | `supabase/config.toml`, `supabase/seed.sql`               |
 | Capacitor config                | `capacitor.config.ts`                                     |
 | Native projects                 | `android/`, `ios/` (generated; see **Mobile apps** below) |
 
@@ -40,42 +44,41 @@ In development, the browser calls `/api/*` via the Vite proxy. In production, ho
 ## Prerequisites
 
 - Node.js 20+ recommended.
-- A PostgreSQL database.
+- A Supabase project (managed PostgreSQL + Auth). For local-only Postgres, Docker also works (see below).
 
 ## Configuration
 
-Copy `.env.example` to `.env` and set variables for both the API and (where needed) the Vite client.
+Copy `.env.example` to `.env` and set variables for both the API and the Vite client. Full
+Supabase setup (linking, providers, local stack, CI, ops) is in [docs/SUPABASE.md](docs/SUPABASE.md).
 
 **Required for the API**
 
-- `DATABASE_URL` — PostgreSQL connection string (e.g. `postgres://user:pass@localhost:5432/carestickers`).
-- `JWT_SECRET` — Long random string used to sign access tokens.
-- `FRONTEND_URL` — One or more comma-separated origins for the web app (e.g. `https://app.example.com` or `http://localhost:3000` for local dev). Used for OAuth redirects and CORS. Must include every URL users open in a browser.
-- `ADMIN_EMAILS` — Comma-separated emails that receive the `admin` role on registration or first OAuth login.
+- `DATABASE_URL` — PostgreSQL connection string. For Supabase use the **Supavisor session pooler** (port 5432): `postgresql://postgres.<project-ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`.
+- `SUPABASE_URL` — `https://<project-ref>.supabase.co`. Used by `@supabase/server` for client creation and JWKS derivation.
+- `SUPABASE_PUBLISHABLE_KEY` — Publishable key (`sb_publishable_...`) from the dashboard Connect dialog. Used for RLS-scoped clients.
+- `SUPABASE_SECRET_KEY` — Secret key (`sb_secret_...`, server-only). Powers `ctx.supabaseAdmin` and `auth: "secret"` handlers. Never commit or expose to the frontend.
+- `SUPABASE_JWKS_URL` — JWKS endpoint for JWT verification (`auth: "user"`). Defaults to `<SUPABASE_URL>/auth/v1/.well-known/jwks.json` when unset.
+- `FRONTEND_URL` — One or more comma-separated browser origins for CORS (e.g. `https://app.example.com` or `http://localhost:3000`).
+- `ADMIN_EMAILS` — Comma-separated emails that receive the `admin` role.
 
 **Optional**
 
-- `APPLY_SCHEMA=true` — On server startup, runs `server/schema.sql` once (handy for local dev; prefer explicit migrations in production).
+- `PGSSL=disable` — Turn off TLS for the DB connection (use for local Docker Postgres; Supabase requires TLS so leave unset there).
+- `SUPABASE_JWKS_URL` — Override the derived JWKS URL (or use inline `SUPABASE_JWKS` JSON instead).
+- `APPLY_SCHEMA=true` — On server startup, applies `supabase/migrations/0001_initial_schema.sql` once (handy for local dev; prefer `supabase db push` / `db reset`).
 - `PORT` — API port (default `3001`).
-- `SESSION_SECRET` — Session cookie secret for OAuth state (defaults to `JWT_SECRET` if unset).
-- `CORS_ORIGINS` — Extra allowed CORS origins (comma-separated), e.g. staging URLs or a separate marketing site.
-- `ALLOW_CAPACITOR_ORIGINS` — Set to `false` to disable automatic allowance of Capacitor WebView origins (`capacitor://localhost`, `ionic://localhost`, `https://localhost`). Default is to allow them so native builds can call the API.
+- `CORS_ORIGINS` — Extra allowed CORS origins (comma-separated).
+- `ALLOW_CAPACITOR_ORIGINS` — Set to `false` to disable automatic allowance of Capacitor WebView origins (`capacitor://localhost`, `ionic://localhost`, `https://localhost`). Default allows them.
 
-**Google Sign-In**
-
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- `GOOGLE_CALLBACK_URL` — Must match the authorized redirect URI in Google Cloud Console (e.g. `http://localhost:3001/api/auth/google/callback`).
-
-**Apple Sign-In**
-
-- Server: `APPLE_CLIENT_ID` — Services ID (audience for the `id_token`).
-- Client (Vite): `VITE_APPLE_CLIENT_ID` — Same Services ID for Sign in with Apple JS.
-- Configure the Services ID redirect domain and return URL to match your deployed origin.
+**Auth providers (Google / Apple / email)** — configured in the Supabase dashboard and
+`supabase/config.toml`, not in the server env. See [docs/SUPABASE.md](docs/SUPABASE.md#2-auth-provider-configuration).
 
 **Client-only (Vite)**
 
-- `VITE_ADMIN_EMAILS` — Comma-separated emails treated as admins in the UI (should align with `ADMIN_EMAILS` on the server).
-- `VITE_API_BASE` — **Required for Capacitor / mobile builds.** Full base URL of your API **without a trailing slash**, e.g. `https://api.example.com`. The WebView cannot use relative `/api` calls the way a browser on the same host can. For normal web deployment on the same domain as the API, leave unset so requests stay same-origin.
+- `VITE_SUPABASE_URL` — `https://<project-ref>.supabase.co`.
+- `VITE_SUPABASE_ANON_KEY` — The anon/publishable key (public by design).
+- `VITE_ADMIN_EMAILS` — Comma-separated emails treated as admins in the UI (align with `ADMIN_EMAILS`).
+- `VITE_API_BASE` — **Required for Capacitor / mobile builds.** Full base URL of your API **without a trailing slash**, e.g. `https://api.example.com`. For same-origin web deployment, leave unset.
 
 ## Setup
 
@@ -87,13 +90,17 @@ Copy `.env.example` to `.env` and set variables for both the API and (where need
 
 2. **Create the database schema**
 
-   Either apply the SQL file manually:
+   Link the repo to your Supabase project and apply migrations:
 
    ```bash
-   psql "$DATABASE_URL" -f server/schema.sql
+   npx supabase login
+   npx supabase link --project-ref <SUPABASE_PROJECT_ID>
+   npm run db:push
    ```
 
-   Or set `APPLY_SCHEMA=true` in `.env` for the first local run (then remove it or leave it off in production).
+   For local-only Postgres you can instead set `APPLY_SCHEMA=true` in `.env` for the first run
+   (applies `supabase/migrations/0001_initial_schema.sql`), or use the full local stack with
+   `npm run db:start`. See [docs/SUPABASE.md](docs/SUPABASE.md).
 
 3. **Run in development** (Vite on port 3000, API on 3001, with `/api` proxied)
 
@@ -115,7 +122,7 @@ Copy `.env.example` to `.env` and set variables for both the API and (where need
    npm start
    ```
 
-   Set `FRONTEND_URL` to your public site URL. Ensure `DATABASE_URL`, `JWT_SECRET`, and auth provider credentials are set in the environment.
+   Set `FRONTEND_URL` to your public site URL. Ensure `DATABASE_URL` and `SUPABASE_URL` (for token verification) are set in the environment.
 
 ## Scripts
 
@@ -133,26 +140,32 @@ Copy `.env.example` to `.env` and set variables for both the API and (where need
 | `npm run cap:sync`         | Run `cap sync` only (after `npm run build` or `build:cap`)                  |
 | `npm run cap:open:android` | Open Android project in Android Studio                                      |
 | `npm run cap:open:ios`     | Open iOS project in Xcode (macOS)                                           |
+| `npm run db:start` / `db:stop` | Start / stop the full local Supabase stack (Docker)                     |
+| `npm run db:push`          | Apply migrations to the linked Supabase project                             |
+| `npm run db:reset`         | Rebuild the local DB from migrations + `seed.sql`                           |
+| `npm run db:migration:new` | Scaffold a new migration (`supabase migration new <name>`)                  |
+| `npm run db:diff`          | Capture Studio/manual changes into a migration                              |
+| `npm run db:types`         | Regenerate `src/types/database.ts` from the linked schema                   |
 
 ## Testing
 
-Tests use **Vitest**, **Testing Library**, and **jsdom** for React components. Server-side logic and a **mocked PostgreSQL** ([pg-mem](https://github.com/oguimbal/pg-mem)) exercise `server/schema.sql` without a real database.
+Tests use **Vitest**, **Testing Library**, and **jsdom** for React components. Server-side logic and a **mocked PostgreSQL** ([pg-mem](https://github.com/oguimbal/pg-mem)) exercise the canonical schema `supabase/migrations/0001_initial_schema.sql` (the auth-link migration `0002` is excluded since pg-mem has no `auth` schema) without a real database.
 
 | Location                                | What is covered                                                      |
 | --------------------------------------- | -------------------------------------------------------------------- |
 | `server/src/mappers.test.ts`            | Row → API DTO mappers                                                |
 | `server/src/corsConfig.test.ts`         | `FRONTEND_URL` / `CORS_ORIGINS` / Capacitor origins                  |
 | `server/src/schema.pgmem.test.ts`       | Schema applies in pg-mem; basic `INSERT` flows                       |
-| `server/test/createPgMemPool.ts`        | Helper: registers `pgcrypto` + `gen_random_uuid`, loads `schema.sql` |
+| `server/test/createPgMemPool.ts`        | Helper: registers `pgcrypto` + `gen_random_uuid`, loads `0001` migration |
 | `src/components/ErrorBoundary.test.tsx` | Error boundary UI                                                    |
-| `src/api/client.test.ts`                | Token storage, `fetch` + auth headers, 401 handling                  |
+| `src/api/client.test.ts`                | Supabase session token, `fetch` + auth headers, 401 sign-out         |
 
 Run `npm run test:run` before releases. pg-mem is not identical to production PostgreSQL; keep staging tests against a real Postgres instance for critical paths.
 
 ## Production deployment (web + API)
 
-1. **Database** — Run `server/schema.sql` against your production PostgreSQL instance (or use a migration tool for ongoing changes).
-2. **Environment** — Set `DATABASE_URL`, `JWT_SECRET`, `FRONTEND_URL` (your public web origin), `ADMIN_EMAILS`, and OAuth secrets on the host. Use HTTPS everywhere in production.
+1. **Database** — Apply migrations to Supabase with `npm run db:push` (CI does this on merge to `main`; see [docs/SUPABASE.md](docs/SUPABASE.md)).
+2. **Environment** — Set `DATABASE_URL` (Supabase pooler), `SUPABASE_URL`, `FRONTEND_URL` (your public web origin), `ADMIN_EMAILS`, plus `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for the client. Use HTTPS everywhere in production.
 3. **Build the client** — `npm run build` produces `dist/`.
 4. **Run the server** — `npm start` serves `/api` and static files from `dist/` when present. Put a reverse proxy (e.g. nginx, Caddy, or your platform’s edge) in front for TLS termination if needed.
 5. **Same-origin (recommended for web)** — If the SPA and API share one hostname (`https://example.com`), you do not need `VITE_API_BASE`; the client uses relative `/api` paths.
@@ -160,7 +173,7 @@ Run `npm run test:run` before releases. pg-mem is not identical to production Po
 ### Docker
 
 - **Image**: `Dockerfile` builds the Vite client and runs the Node API with `tsx`.
-- **Compose**: `docker-compose.yml` runs PostgreSQL plus the app. On **first** creation of the Postgres volume, `server/schema.sql` is applied automatically via `/docker-entrypoint-initdb.d` (no manual `psql` step). The app sets `APPLY_SCHEMA=false` so the Node process does not duplicate that work.
+- **Compose**: `docker-compose.yml` runs PostgreSQL plus the app. On **first** creation of the Postgres volume, `supabase/migrations/0001_initial_schema.sql` is applied automatically via `/docker-entrypoint-initdb.d` (no manual `psql` step). The auth-link migration `0002` is not applied here because plain Postgres has no `auth` schema — for full Supabase Auth parity locally, use `npm run db:start`. The app sets `APPLY_SCHEMA=false` so the Node process does not duplicate that work.
 
 **Full stack (build + start DB + API):**
 
@@ -178,7 +191,7 @@ npm run docker:db
 
 **Stop containers:** `npm run docker:down` or `docker compose down`.
 
-Set `JWT_SECRET`, `SESSION_SECRET`, `FRONTEND_URL`, and OAuth variables for real use; see `.env.example`. Adjust credentials and never commit real secrets.
+Set `DATABASE_URL`, `SUPABASE_URL`, `FRONTEND_URL`, and the `VITE_SUPABASE_*` client vars for real use; see `.env.example`. Adjust credentials and never commit real secrets.
 
 ## Mobile apps (iOS & Android)
 
@@ -230,9 +243,10 @@ Google and Apple may restrict sign-in inside generic WebViews. If login fails in
 
 ## Security Notes
 
-- Passwords are stored as bcrypt hashes; API routes enforce ownership and admin checks on the server.
-- JWTs are stored in `localStorage` on the client. For stricter deployments, consider httpOnly cookies and refresh-token rotation.
-- Keep `JWT_SECRET`, database credentials, and OAuth client secrets out of version control (use `.env`, which is gitignored).
+- Credentials and identities are managed by **Supabase Auth**; the Express API verifies Supabase access tokens (JWKS) and enforces ownership/admin checks on the server.
+- The client holds only the Supabase session (access/refresh tokens) and the public anon key. The `service_role` key must stay server-side and out of the repo.
+- RLS is left disabled on the app tables in this phase because the privileged server role enforces access in app code. If you expose tables directly to the Data API later, enable RLS with ownership policies first — see [docs/SUPABASE.md](docs/SUPABASE.md#8-security-notes).
+- Keep database credentials, the Supabase access token / DB password, and provider secrets out of version control (use `.env`, which is gitignored).
 
 ## License
 

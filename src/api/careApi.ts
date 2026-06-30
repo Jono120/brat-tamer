@@ -20,17 +20,8 @@ export type MeResponse = {
 };
 
 export const careApi = {
+  // Identity is owned by Supabase Auth; `me` hydrates the profile for the current session.
   me: () => api.get("/api/me") as Promise<MeResponse>,
-  login: (email: string, password: string) =>
-    api.post("/api/auth/login", { email, password }) as Promise<{
-      token: string;
-    }>,
-  register: (email: string, password: string) =>
-    api.post("/api/auth/register", { email, password }) as Promise<{
-      token: string;
-    }>,
-  apple: (idToken: string) =>
-    api.post("/api/auth/apple", { idToken }) as Promise<{ token: string }>,
   patchProfile: (
     body: Partial<{
       displayName: string;
