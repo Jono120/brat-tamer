@@ -111,7 +111,15 @@ model based on your plan tier and document it here once chosen.
   `src/types/database.ts` is stale (drift guard).
 - On merge to `main`: `supabase link` + `supabase db push` apply migrations to the linked project.
 
-Required repo secrets: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, `SUPABASE_PROJECT_ID`.
+Required repo secrets (GitHub → Settings → Secrets and variables → Actions):
+
+| Secret | Where to get it | Format |
+| ------ | --------------- | ------ |
+| `SUPABASE_ACCESS_TOKEN` | [Account → Access Tokens](https://supabase.com/dashboard/account/tokens) — click **Generate new token** | `sbp_` + 40 hex chars |
+| `SUPABASE_PROJECT_ID` | Project **Settings → General → Reference ID** | e.g. `smicamiarzmqnyuwyyhl` |
+| `SUPABASE_DB_PASSWORD` | Project **Settings → Database** (password you set at project creation) | plain password |
+
+**Do not** use project API keys here. Keys from the **Connect** dialog (`sb_publishable_...`, `sb_secret_...`, anon, service_role) authenticate the Data API, not the Management API / CLI. CI needs a separate **Personal Access Token** tied to your Supabase account.
 
 ## 6. Operations: backups, Studio, observability
 

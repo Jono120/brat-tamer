@@ -43,7 +43,7 @@ In development, the browser calls `/api/*` via the Vite proxy. In production, ho
 
 ## Prerequisites
 
-- Node.js 20+ recommended.
+- Node.js 20+ recommended (CI uses Node.js 24).
 - A Supabase project (managed PostgreSQL + Auth). For local-only Postgres, Docker also works (see below).
 
 ## Configuration
