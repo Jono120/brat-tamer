@@ -1,5 +1,7 @@
 # CareStickers Application
 
+[![Supabase Deployment](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml)
+
 CareStickers is a social self-care tracking application that allows users to set personal and community goals, earn stickers for completing them, and share progress with friends.
 
 ## Features
