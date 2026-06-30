@@ -76,7 +76,7 @@ jobs:
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       - name: Verify generated types are committed and up to date
         run: |
-          supabase gen types typescript --linked > src/types/database.generated.ts
+          supabase gen types typescript --linked 2>/dev/null > src/types/database.generated.ts
           if ! diff -q src/types/database.ts src/types/database.generated.ts; then
             echo "::error::src/types/database.ts is out of date. Run 'npm run db:types' and commit the result."
             diff src/types/database.ts src/types/database.generated.ts || true
