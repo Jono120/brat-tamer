@@ -40,7 +40,7 @@ jobs:
       - run: npm ci
       - uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.108.0
       - name: Validate CI secrets
         run: |
           missing=0
@@ -93,7 +93,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.108.0
       - name: Validate CI secrets
         run: |
           missing=0
