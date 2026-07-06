@@ -7,15 +7,26 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
+import { resolvePhotoUrl } from "./avatarUrl.js";
+import {
+  canAccessGroup,
+  inviteAlreadyUsed,
+  validateInteraction,
+  validatePhotoUrl,
+  validateTaskForLog,
+} from "./authz.js";
 import { buildAllowedCorsOrigins } from "./corsConfig.js";
 import { initSchema, pool } from "./db.js";
+import { logRequestError } from "./logger.js";
 import {
+  mapFeedbackRow,
   mapGroupRow,
   mapInteractionRow,
   mapLogRow,
   mapTaskRow,
   mapUserRow,
 } from "./mappers.js";
+import { apiLimiter, writeLimiter } from "./rateLimit.js";
 import { jwtAuth, warnIfSupabaseAuthMissing } from "./supabaseServer.js";
 
 type TaskPayload = {
@@ -129,8 +140,17 @@ async function main() {
     }),
   );
   app.use(express.json({ limit: "6mb" }));
+  app.use("/api", apiLimiter);
 
-  app.get("/api/health", (_req, res) => res.json({ ok: true }));
+  app.get("/api/health", async (_req, res) => {
+    try {
+      await pool.query("SELECT 1");
+      res.json({ ok: true, db: true });
+    } catch (e) {
+      logRequestError(e, { path: "/api/health" }, 503);
+      res.status(503).json({ ok: false, db: false });
+    }
+  });
 
   app.get("/api/me", jwtAuth, async (req, res) => {
     try {
@@ -148,17 +168,20 @@ async function main() {
         [uid],
       );
       const row = u.rows[0];
+      const photoURL = await resolvePhotoUrl(
+        row?.photo_url != null ? String(row.photo_url) : null,
+      );
       res.json({
         user: {
           uid,
           email: row?.email ?? null,
           displayName: row?.display_name ?? null,
-          photoURL: row?.photo_url ?? null,
+          photoURL,
         },
-        profile,
+        profile: { ...profile, photoURL },
       });
     } catch (e) {
-      console.error(e);
+      logRequestError(e, { path: "/api/me", userId: req.userId }, 500);
       res.status(500).json({ error: "Failed to load profile" });
     }
   });
@@ -180,6 +203,11 @@ async function main() {
         vals.push(body.displayName);
       }
       if (body.photoURL != null) {
+        const photoErr = validatePhotoUrl(body.photoURL);
+        if (photoErr) {
+          res.status(photoErr.status).json({ error: photoErr.error });
+          return;
+        }
         updates.push(`photo_url = $${i++}`);
         vals.push(body.photoURL);
       }
@@ -203,8 +231,41 @@ async function main() {
       const profile = await loadProfile(uid);
       res.json({ profile });
     } catch (e) {
-      console.error(e);
+      logRequestError(e, { path: "/api/profile", userId: req.userId }, 500);
       res.status(500).json({ error: "Update failed" });
+    }
+  });
+
+  app.get("/api/friends", jwtAuth, async (req, res) => {
+    try {
+      const uid = (req as express.Request & { userId: string }).userId;
+      const today = new Date().toISOString().split("T")[0];
+      const r = await pool.query(
+        `SELECT u.id, u.display_name, u.photo_url,
+           COALESCE((
+             SELECT SUM(sl.count)::int FROM sticker_logs sl
+             WHERE sl.user_id = u.id AND sl.date = $2::date
+           ), 0) AS today_sticker_count
+         FROM user_friends uf
+         JOIN users u ON u.id = uf.friend_id
+         WHERE uf.user_id = $1
+         ORDER BY u.display_name`,
+        [uid, today],
+      );
+      const friends = await Promise.all(
+        r.rows.map(async (row) => ({
+          uid: String(row.id),
+          displayName: String(row.display_name),
+          photoURL: await resolvePhotoUrl(
+            row.photo_url != null ? String(row.photo_url) : null,
+          ),
+          todayStickerCount: Number(row.today_sticker_count) || 0,
+        })),
+      );
+      res.json(friends);
+    } catch (e) {
+      logRequestError(e, { path: "/api/friends", userId: req.userId }, 500);
+      res.status(500).json({ error: "Failed to load friends" });
     }
   });
 
@@ -405,7 +466,7 @@ async function main() {
     }
   });
 
-  app.post("/api/logs", jwtAuth, async (req, res) => {
+  app.post("/api/logs", jwtAuth, writeLimiter, async (req, res) => {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
       const b = req.body as {
@@ -414,6 +475,11 @@ async function main() {
         earnedAt: string;
         count?: number;
       };
+      const taskErr = await validateTaskForLog(pool, uid, b.taskId);
+      if (taskErr) {
+        res.status(taskErr.status).json({ error: taskErr.error });
+        return;
+      }
       const r = await pool.query(
         `INSERT INTO sticker_logs (user_id, task_id, date, earned_at, count) VALUES ($1, $2, $3::date, $4::timestamptz, $5) RETURNING *`,
         [uid, b.taskId, b.date, b.earnedAt, b.count ?? 1],
@@ -484,7 +550,7 @@ async function main() {
     }
   });
 
-  app.post("/api/interactions", jwtAuth, async (req, res) => {
+  app.post("/api/interactions", jwtAuth, writeLimiter, async (req, res) => {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
       const b = req.body as {
@@ -493,24 +559,76 @@ async function main() {
         content?: string;
         timestamp: string;
       };
+      const authzErr = await validateInteraction(pool, uid, b.toUserId, b.type);
+      if (authzErr) {
+        res.status(authzErr.status).json({ error: authzErr.error });
+        return;
+      }
       const r = await pool.query(
         `INSERT INTO interactions (from_user_id, to_user_id, type, content, timestamp, read) VALUES ($1, $2, $3, $4, $5::timestamptz, false) RETURNING *`,
         [uid, b.toUserId, b.type, b.content ?? null, b.timestamp],
       );
       res.json(mapInteractionRow(r.rows[0]));
     } catch (e) {
-      console.error(e);
+      logRequestError(e, { path: "/api/interactions", userId: req.userId }, 500);
       res.status(500).json({ error: "Failed to send interaction" });
+    }
+  });
+
+  app.patch("/api/interactions/:id/read", jwtAuth, async (req, res) => {
+    try {
+      const uid = (req as express.Request & { userId: string }).userId;
+      const r = await pool.query(
+        `UPDATE interactions SET read = true
+         WHERE id = $1 AND to_user_id = $2
+         RETURNING *`,
+        [req.params.id, uid],
+      );
+      if (r.rows.length === 0) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      res.json(mapInteractionRow(r.rows[0]));
+    } catch (e) {
+      logRequestError(
+        e,
+        { path: "/api/interactions/:id/read", userId: req.userId },
+        500,
+      );
+      res.status(500).json({ error: "Failed to mark read" });
+    }
+  });
+
+  app.post("/api/interactions/inbox/mark-read", jwtAuth, async (req, res) => {
+    try {
+      const uid = (req as express.Request & { userId: string }).userId;
+      await pool.query(
+        `UPDATE interactions SET read = true WHERE to_user_id = $1 AND read = false`,
+        [uid],
+      );
+      res.json({ ok: true });
+    } catch (e) {
+      logRequestError(
+        e,
+        { path: "/api/interactions/inbox/mark-read", userId: req.userId },
+        500,
+      );
+      res.status(500).json({ error: "Failed to mark inbox read" });
     }
   });
 
   app.get("/api/groups/:id", jwtAuth, async (req, res) => {
     try {
+      const uid = (req as express.Request & { userId: string }).userId;
       const r = await pool.query("SELECT * FROM groups WHERE id = $1", [
         req.params.id,
       ]);
       if (r.rows.length === 0) {
         res.status(404).json({ error: "Not found" });
+        return;
+      }
+      if (!canAccessGroup(uid, r.rows[0])) {
+        res.status(403).json({ error: "Forbidden" });
         return;
       }
       res.json(mapGroupRow(r.rows[0]));
@@ -586,7 +704,7 @@ async function main() {
     }
   });
 
-  app.post("/api/invites", jwtAuth, async (req, res) => {
+  app.post("/api/invites", jwtAuth, writeLimiter, async (req, res) => {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
       const r = await pool.query(
@@ -600,19 +718,27 @@ async function main() {
     }
   });
 
-  app.get("/api/invites/:id", async (req, res) => {
+  app.get("/api/invites/:id", jwtAuth, async (req, res) => {
     try {
       const r = await pool.query(
-        "SELECT inviter_id FROM invites WHERE id = $1",
+        "SELECT inviter_id, used FROM invites WHERE id = $1",
         [req.params.id],
       );
       if (r.rows.length === 0) {
         res.status(404).json({ error: "Not found" });
         return;
       }
-      res.json({ inviterId: String(r.rows[0].inviter_id) });
+      const row = r.rows[0];
+      if (row.used) {
+        res.json({ valid: false, used: true });
+        return;
+      }
+      res.json({
+        valid: true,
+        inviterId: String(row.inviter_id),
+      });
     } catch (e) {
-      console.error(e);
+      logRequestError(e, { path: "/api/invites/:id", userId: req.userId }, 500);
       res.status(500).json({ error: "Failed to load invite" });
     }
   });
@@ -626,6 +752,11 @@ async function main() {
       ]);
       if (inv.rows.length === 0) {
         res.status(404).json({ error: "Not found" });
+        return;
+      }
+      const usedErr = inviteAlreadyUsed(inv.rows[0]);
+      if (usedErr) {
+        res.status(usedErr.status).json({ error: usedErr.error });
         return;
       }
       const inviterId = String(inv.rows[0].inviter_id);
@@ -646,7 +777,7 @@ async function main() {
     }
   });
 
-  app.post("/api/feedback", jwtAuth, async (req, res) => {
+  app.post("/api/feedback", jwtAuth, writeLimiter, async (req, res) => {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
       const u = await pool.query("SELECT email FROM users WHERE id = $1", [
@@ -680,22 +811,115 @@ async function main() {
     }
   });
 
-  app.get("/api/admin/logs", jwtAuth, requireAdmin, async (_req, res) => {
+  app.get("/api/admin/logs", jwtAuth, requireAdmin, async (req, res) => {
     try {
-      const r = await pool.query(
-        "SELECT * FROM sticker_logs ORDER BY earned_at DESC LIMIT 50000",
+      const limit = Math.min(
+        Math.max(Number(req.query.limit) || 500, 1),
+        2000,
       );
-      res.json(r.rows.map(mapLogRow));
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const r = await pool.query(
+        "SELECT * FROM sticker_logs ORDER BY earned_at DESC LIMIT $1 OFFSET $2",
+        [limit, offset],
+      );
+      res.json({
+        logs: r.rows.map(mapLogRow),
+        limit,
+        offset,
+        hasMore: r.rows.length === limit,
+      });
     } catch (e) {
-      console.error(e);
+      logRequestError(e, { path: "/api/admin/logs", userId: req.userId }, 500);
       res.status(500).json({ error: "Failed to load logs" });
     }
   });
 
+  app.get("/api/admin/feedback", jwtAuth, requireAdmin, async (req, res) => {
+    try {
+      const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
+      const offset = Math.max(Number(req.query.offset) || 0, 0);
+      const r = await pool.query(
+        `SELECT * FROM feedback WHERE status = 'pending'
+         ORDER BY timestamp DESC LIMIT $1 OFFSET $2`,
+        [limit, offset],
+      );
+      res.json({
+        feedback: r.rows.map(mapFeedbackRow),
+        limit,
+        offset,
+        hasMore: r.rows.length === limit,
+      });
+    } catch (e) {
+      logRequestError(
+        e,
+        { path: "/api/admin/feedback", userId: req.userId },
+        500,
+      );
+      res.status(500).json({ error: "Failed to load feedback" });
+    }
+  });
+
+  app.patch("/api/admin/feedback/:id", jwtAuth, requireAdmin, async (req, res) => {
+    try {
+      const r = await pool.query(
+        `UPDATE feedback SET status = 'reviewed' WHERE id = $1 RETURNING *`,
+        [req.params.id],
+      );
+      if (r.rows.length === 0) {
+        res.status(404).json({ error: "Not found" });
+        return;
+      }
+      res.json(mapFeedbackRow(r.rows[0]));
+    } catch (e) {
+      logRequestError(
+        e,
+        { path: "/api/admin/feedback/:id", userId: req.userId },
+        500,
+      );
+      res.status(500).json({ error: "Failed to update feedback" });
+    }
+  });
+
+  app.post(
+    "/api/admin/tasks/:id/daily-challenge",
+    jwtAuth,
+    requireAdmin,
+    async (req, res) => {
+      try {
+        const id = req.params.id;
+        const t = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
+        if (t.rows.length === 0) {
+          res.status(404).json({ error: "Not found" });
+          return;
+        }
+        if (!t.rows[0].is_global) {
+          res.status(400).json({ error: "Daily challenge must be a global task" });
+          return;
+        }
+        await pool.query(
+          `UPDATE tasks SET is_daily_challenge = false WHERE is_daily_challenge = true`,
+        );
+        await pool.query(
+          `UPDATE tasks SET is_daily_challenge = true WHERE id = $1`,
+          [id],
+        );
+        const u = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
+        res.json(mapTaskRow(u.rows[0]));
+      } catch (e) {
+        logRequestError(
+          e,
+          { path: "/api/admin/tasks/:id/daily-challenge", userId: req.userId },
+          500,
+        );
+        res.status(500).json({ error: "Failed to set daily challenge" });
+      }
+    },
+  );
+
   const distPath = path.join(__dirname, "..", "..", "dist");
   if (fs.existsSync(distPath)) {
     app.use(express.static(distPath));
-    app.get("*", (_req, res) => {
+    app.get("/{*path}", (_req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

@@ -53,9 +53,11 @@ export function useSocial() {
   const d = useData();
   return {
     interactions: d.interactions,
+    friends: d.friends,
     group: d.group,
     hasLoadedData: d.hasLoadedData,
     sendInteraction: d.sendInteraction,
+    markInboxRead: d.markInboxRead,
     shareProgress: d.shareProgress,
     generateInviteLink: d.generateInviteLink,
     createGroup: d.createGroup,
@@ -64,16 +66,21 @@ export function useSocial() {
   };
 }
 
-/** Admin portal data: users, community logs and search. */
+/** Admin portal data: users, community logs, feedback and search. */
 export function useAdmin() {
   const d = useData();
   return {
     allUsers: d.allUsers,
     allUsersLogs: d.allUsersLogs,
+    adminFeedback: d.adminFeedback,
+    adminLogsHasMore: d.adminLogsHasMore,
     globalTasks: d.globalTasks,
     today: d.today,
     hasLoadedData: d.hasLoadedData,
     adminSearchQuery: d.adminSearchQuery,
     setAdminSearchQuery: d.setAdminSearchQuery,
+    loadMoreAdminLogs: d.loadMoreAdminLogs,
+    reviewFeedback: d.reviewFeedback,
+    setDailyChallenge: d.setDailyChallenge,
   };
 }

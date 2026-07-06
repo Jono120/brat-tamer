@@ -21,10 +21,29 @@ import {
   UserProfile,
   Interaction,
   Group,
+  FriendProfile,
+  Feedback,
 } from "../types";
 import { ADMIN_EMAILS } from "../constants";
 import { errorMessage } from "../lib/errors";
+import { subscribeRealtime } from "../lib/realtimeSync";
 import { useToast } from "../components/ui/Toast";
+
+const MAX_AVATAR_BYTES = 6 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+]);
+
+function activeHashPath(): string {
+  const hash = window.location.hash.replace(/^#/, "") || "/";
+  return hash.split("?")[0];
+}
+
+function pollMs(): number {
+  return document.visibilityState === "visible" ? 4000 : 15000;
+}
 
 export interface TaskPayload {
   title: string;
@@ -51,9 +70,12 @@ interface DataContextValue {
   logs: StickerLog[];
   allLogs: StickerLog[];
   interactions: Interaction[];
+  friends: FriendProfile[];
   group: Group | null;
   allUsers: UserProfile[];
   allUsersLogs: StickerLog[];
+  adminFeedback: Feedback[];
+  adminLogsHasMore: boolean;
   // onboarding / notifications
   onboardingStep: number | null;
   setOnboardingStep: (step: number | null) => void;
@@ -84,12 +106,17 @@ interface DataContextValue {
     type: "high-five" | "message",
     content?: string,
   ) => Promise<void>;
+  markInboxRead: () => Promise<void>;
   shareProgress: () => Promise<void>;
   generateInviteLink: () => Promise<void>;
   createGroup: (name: string) => Promise<boolean>;
   joinGroup: (code: string) => Promise<void>;
   // feedback
   submitFeedback: (content: string, type: "feature" | "issue") => Promise<boolean>;
+  // admin actions
+  loadMoreAdminLogs: () => Promise<void>;
+  reviewFeedback: (id: string) => Promise<void>;
+  setDailyChallenge: (taskId: string) => Promise<boolean>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -109,11 +136,15 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
   const [logs, setLogs] = useState<StickerLog[]>([]);
   const [allLogs, setAllLogs] = useState<StickerLog[]>([]);
   const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [friends, setFriends] = useState<FriendProfile[]>([]);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [hasLoadedData, setHasLoadedData] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [allUsers, setAllUsers] = useState<UserProfile[]>([]);
   const [allUsersLogs, setAllUsersLogs] = useState<StickerLog[]>([]);
+  const [adminFeedback, setAdminFeedback] = useState<Feedback[]>([]);
+  const [adminLogsHasMore, setAdminLogsHasMore] = useState(false);
+  const [adminLogsOffset, setAdminLogsOffset] = useState(0);
   const [globalTasks, setGlobalTasks] = useState<Task[]>([]);
   const [inviteCode, setInviteCode] = useState<string | null>(null);
   const [isProcessingInvite, setIsProcessingInvite] = useState(false);
@@ -195,7 +226,8 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         setIsProcessingInvite(true);
         try {
           const inv = await careApi.getInvite(inviteCode);
-          if (inv.inviterId !== user.uid) {
+          if (!inv.valid || inv.used) return;
+          if (inv.inviterId && inv.inviterId !== user.uid) {
             await careApi.acceptInvite(inviteCode);
             const me = await careApi.me();
             setProfile(me.profile);
@@ -228,28 +260,40 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
     void load();
-    const id = setInterval(load, 5000);
+    const tick = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    const id = setInterval(tick, pollMs());
+    const onVis = () => {
+      if (document.visibilityState === "visible") void load();
+    };
+    document.addEventListener("visibilitychange", onVis);
     return () => {
       cancelled = true;
       clearInterval(id);
+      document.removeEventListener("visibilitychange", onVis);
     };
   }, [user, profile?.groupId]);
 
-  // Data refresh (polling)
+  // Data refresh (visibility-aware polling + realtime triggers)
   useEffect(() => {
     if (!user || !isAuthReady) return;
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const refresh = async () => {
       try {
-        const [me, mine, glob, logsToday, logsAll, inbox] = await Promise.all([
-          careApi.me(),
-          careApi.tasksMine(),
-          careApi.tasksGlobal(),
-          careApi.logsMine(today),
-          careApi.logsMine(),
-          careApi.interactionsInbox(),
-        ]);
+        const onAdminTab = activeHashPath() === "/admin";
+        const [me, mine, glob, logsToday, logsAll, inbox, friendList] =
+          await Promise.all([
+            careApi.me(),
+            careApi.tasksMine(),
+            careApi.tasksGlobal(),
+            careApi.logsMine(today),
+            careApi.logsMine(),
+            careApi.interactionsInbox(),
+            careApi.friends(),
+          ]);
         if (cancelled) return;
         setUser(me.user);
         setProfile(me.profile);
@@ -258,23 +302,30 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         setLogs(logsToday);
         setAllLogs(logsAll);
         setInteractions(inbox);
+        setFriends(friendList);
         applyTheme(me.profile.theme);
         const adminUser =
           me.profile.role === "admin" ||
           (!!me.user.email &&
             ADMIN_EMAILS.includes(me.user.email.toLowerCase()));
-        if (adminUser) {
-          const [users, allL] = await Promise.all([
+        if (adminUser && onAdminTab) {
+          const [users, logsPage, feedbackPage] = await Promise.all([
             careApi.adminUsers(),
-            careApi.adminLogs(),
+            careApi.adminLogs({ limit: 500, offset: 0 }),
+            careApi.adminFeedback({ limit: 50, offset: 0 }),
           ]);
           if (!cancelled) {
             setAllUsers(users);
-            setAllUsersLogs(allL);
+            setAllUsersLogs(logsPage.logs);
+            setAdminLogsOffset(logsPage.logs.length);
+            setAdminLogsHasMore(logsPage.hasMore);
+            setAdminFeedback(feedbackPage.feedback);
           }
-        } else {
+        } else if (!adminUser) {
           setAllUsers([]);
           setAllUsersLogs([]);
+          setAdminFeedback([]);
+          setAdminLogsHasMore(false);
         }
       } catch (e) {
         console.error(e);
@@ -283,13 +334,40 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    void refresh();
-    const interval = setInterval(refresh, 4000);
+    const schedule = () => {
+      if (cancelled) return;
+      timer = setTimeout(() => {
+        void refresh().finally(schedule);
+      }, pollMs());
+    };
+
+    void refresh().finally(schedule);
+
+    const onVis = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    const onHash = () => void refresh();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("hashchange", onHash);
+
+    const unsubRealtime = subscribeRealtime(
+      user.uid,
+      profile?.groupId,
+      {
+        onInteraction: () => void refresh(),
+        onStickerLog: () => void refresh(),
+        onGroup: () => void refresh(),
+      },
+    );
+
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("hashchange", onHash);
+      unsubRealtime();
     };
-  }, [user, isAuthReady, today, applyTheme]);
+  }, [user, isAuthReady, today, applyTheme, profile?.groupId]);
 
   // Notification permission state
   useEffect(() => {
@@ -371,6 +449,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     setLogs([]);
     setAllLogs([]);
     setInteractions([]);
+    setFriends([]);
     setGlobalTasks([]);
     setGroup(null);
     setOnboardingStep(null);
@@ -408,23 +487,30 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
   // --- Profile ---
   const uploadAvatar = useCallback(
-    (file: File) =>
-      new Promise<void>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          const base64String = reader.result as string;
-          if (user) {
-            try {
-              await careApi.patchProfile({ photoURL: base64String });
-              toast.success("Avatar updated!");
-            } catch (err) {
-              toast.error(errorMessage(err));
-            }
-          }
-          resolve();
-        };
-        reader.readAsDataURL(file);
-      }),
+    async (file: File) => {
+      if (!user) return;
+      if (file.size > MAX_AVATAR_BYTES) {
+        toast.error("Image must be 6 MB or smaller.");
+        return;
+      }
+      if (!ALLOWED_AVATAR_TYPES.has(file.type)) {
+        toast.error("Use PNG, JPEG, or WebP images.");
+        return;
+      }
+      const ext = file.type === "image/png" ? "png" : file.type === "image/webp" ? "webp" : "jpg";
+      const objectPath = `${user.uid}/${crypto.randomUUID()}.${ext}`;
+      const storagePath = `avatars/${objectPath}`;
+      try {
+        const { error: uploadErr } = await supabase.storage
+          .from("avatars")
+          .upload(objectPath, file, { upsert: true, contentType: file.type });
+        if (uploadErr) throw uploadErr;
+        await careApi.patchProfile({ photoURL: storagePath });
+        toast.success("Avatar updated!");
+      } catch (err) {
+        toast.error(errorMessage(err));
+      }
+    },
     [user, toast],
   );
 
@@ -531,6 +617,16 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
   );
 
   // --- Social ---
+  const markInboxRead = useCallback(async () => {
+    if (!user) return;
+    try {
+      await careApi.markInboxRead();
+      setInteractions((prev) => prev.map((i) => ({ ...i, read: true })));
+    } catch (e) {
+      console.error("Failed to mark inbox read", e);
+    }
+  }, [user]);
+
   const sendInteraction = useCallback(
     async (
       toUserId: string,
@@ -639,6 +735,50 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     [user, toast],
   );
 
+  const loadMoreAdminLogs = useCallback(async () => {
+    if (!adminLogsHasMore) return;
+    try {
+      const page = await careApi.adminLogs({
+        limit: 500,
+        offset: adminLogsOffset,
+      });
+      setAllUsersLogs((prev) => [...prev, ...page.logs]);
+      setAdminLogsOffset((o) => o + page.logs.length);
+      setAdminLogsHasMore(page.hasMore);
+    } catch (e) {
+      toast.error(errorMessage(e));
+    }
+  }, [adminLogsHasMore, adminLogsOffset, toast]);
+
+  const reviewFeedback = useCallback(
+    async (id: string) => {
+      try {
+        await careApi.reviewFeedback(id);
+        setAdminFeedback((prev) => prev.filter((f) => f.id !== id));
+        toast.success("Feedback marked reviewed");
+      } catch (e) {
+        toast.error(errorMessage(e));
+      }
+    },
+    [toast],
+  );
+
+  const setDailyChallenge = useCallback(
+    async (taskId: string): Promise<boolean> => {
+      try {
+        await careApi.setDailyChallenge(taskId);
+        const glob = await careApi.tasksGlobal();
+        setGlobalTasks(glob);
+        toast.success("Daily challenge updated!");
+        return true;
+      } catch (e) {
+        toast.error(errorMessage(e));
+        return false;
+      }
+    },
+    [toast],
+  );
+
   const value: DataContextValue = {
     user,
     profile,
@@ -652,9 +792,12 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     logs,
     allLogs,
     interactions,
+    friends,
     group,
     allUsers,
     allUsersLogs,
+    adminFeedback,
+    adminLogsHasMore,
     onboardingStep,
     setOnboardingStep,
     notificationsEnabled,
@@ -675,11 +818,15 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     updateTask,
     deleteTask,
     sendInteraction,
+    markInboxRead,
     shareProgress,
     generateInviteLink,
     createGroup,
     joinGroup,
     submitFeedback,
+    loadMoreAdminLogs,
+    reviewFeedback,
+    setDailyChallenge,
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

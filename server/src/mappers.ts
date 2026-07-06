@@ -71,6 +71,18 @@ export function mapInteractionRow(row: Record<string, unknown>) {
   };
 }
 
+export function mapFeedbackRow(row: Record<string, unknown>) {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    userEmail: String(row.user_email),
+    content: String(row.content),
+    type: row.type as "feature" | "issue",
+    timestamp: new Date(row.timestamp as string).toISOString(),
+    status: row.status as "pending" | "reviewed",
+  };
+}
+
 export function mapGroupRow(row: Record<string, unknown>) {
   const members = row.members as string[];
   return {

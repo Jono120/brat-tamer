@@ -99,9 +99,17 @@ Auth / Realtime parity.
 
 ## 4. Branching / preview environments
 
-Use Supabase **branching** (or a dedicated staging project) so PRs get an isolated database.
-`supabase db push` targets the branch/preview; merging promotes migrations to production. Pick the
-model based on your plan tier and document it here once chosen.
+Use a **dedicated staging Supabase project** (recommended) or Supabase **branching** so PRs get an isolated database.
+
+### Staging project (recommended)
+
+1. Create a second Supabase project for staging.
+2. Add GitHub secrets: `SUPABASE_STAGING_PROJECT_ID`, `SUPABASE_STAGING_DB_PASSWORD` (plus `SUPABASE_ACCESS_TOKEN`).
+3. Run the **Deploy → deploy-staging** workflow (`workflow_dispatch`) to apply migrations.
+4. Point local/staging `.env` at the staging project URL and keys.
+5. E2E tests: set `E2E_EMAIL` / `E2E_PASSWORD` to seeded users and `PLAYWRIGHT_BASE_URL` to your staging URL; run `npm run test:e2e`.
+
+`supabase db push` on merge to `main` still targets production via `.github/workflows/supabase.yml`.
 
 ## 5. CI/CD
 
@@ -154,29 +162,23 @@ Notes:
 
 ## 8. Security notes
 
-- The Express server connects with a privileged DB role and enforces access in app code, so RLS is
-  bypassed for server queries. RLS is left disabled on the app tables in this phase even though
-  auth is now Supabase-issued. If you later expose tables directly to the Data API, enable RLS and
-  add ownership policies first (see the security checklist in the Supabase skill).
-- The `VITE_SUPABASE_ANON_KEY` is public by design and safe with RLS off because the anon key
-  alone cannot reach the app tables through the Express server. Keep the `service_role` key
-  server-side only and out of the repo; never expose it to the frontend.
+- The Express server connects with a privileged DB role and bypasses RLS for server queries.
+  RLS is enabled on app tables (`0005_rls_realtime.sql`) for direct client/Realtime access.
+- The `VITE_SUPABASE_ANON_KEY` is public by design; RLS policies scope direct table access.
+  Keep the `service_role` key server-side only and out of the repo; never expose it to the frontend.
 - The frontend only holds the Supabase session (access/refresh tokens) and the anon key.
 
-## 9. Future Supabase opportunities (documented, not implemented)
+## 9. Implemented platform features
 
-These map directly onto current code and leverage the rest of the platform:
+- **Storage for avatars**: migration `0003_storage_buckets.sql`; clients upload to the `avatars` bucket and store the path in `users.photo_url`. The API resolves signed URLs on read.
+- **Realtime (optional)**: migration `0005_rls_realtime.sql` enables RLS + Realtime publication. The client subscribes via `src/lib/realtimeSync.ts` and still falls back to visibility-aware polling.
+- **Daily challenge rotation**: migration `0004_daily_challenge.sql` enforces a single active challenge; Edge Function `rotate-daily-challenge` rotates nightly (configure cron in dashboard).
+- **Observability**: structured JSON error logs in `server/src/logger.ts`; optional `SENTRY_DSN` for client/server error tracking (env-gated).
 
-- **Storage for avatars**: avatars are currently base64 data URLs in `users.photo_url` (set via
-  `careApi.patchProfile({ photoURL })`, with a 6mb JSON body limit on the server). Move uploads to
-  a Supabase Storage bucket and store the public/signed URL instead, shrinking row size and payloads.
-- **Realtime instead of polling**: the data provider polls every ~4s (plus a 5s group poll).
-  Supabase Realtime (Postgres changes / broadcast) on `sticker_logs`, `interactions` and `groups`
-  could push updates and remove the intervals.
-- **Edge Functions**: candidates for invite link handling, feedback intake, or scheduled jobs
-  (e.g. daily challenge rotation) without growing the Express server.
-- **Frontend-direct data access + RLS**: with Supabase Auth in place, a later phase could let the
-  client query Supabase directly under RLS policies and shrink or remove the Express data layer.
+## 10. Future opportunities
+
+- **Frontend-direct data access**: RLS is enabled for reads; migrating writes from Express to the Supabase client would further shrink the API surface.
+- **Capacitor native**: see [docs/MOBILE_DEFERRED.md](MOBILE_DEFERRED.md).
 
 ## 11. `@supabase/server`
 

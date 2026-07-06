@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@supabase/server": ["../../node_modules/@supabase/server/dist/index.d.mts"],
+      "@/types/database": ["../../src/types/database.ts"]
+    }
+  },
+  "include": ["**/*.ts"]
+}

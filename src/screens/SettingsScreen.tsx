@@ -269,6 +269,15 @@ export const SettingsScreen = () => {
           <span>Logout</span>
           <LogOut size={20} strokeWidth={2} />
         </button>
+
+        <a
+          href="/privacy.html"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-center text-xs text-muted font-bold uppercase tracking-wider py-2"
+        >
+          Privacy Policy
+        </a>
       </div>
     </div>
   );

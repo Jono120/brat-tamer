@@ -1,5 +1,7 @@
 import { api } from "./client";
 import type {
+  Feedback,
+  FriendProfile,
   Group,
   Interaction,
   StickerLog,
@@ -19,8 +21,21 @@ export type MeResponse = {
   profile: UserProfile;
 };
 
+export type AdminLogsResponse = {
+  logs: StickerLog[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+};
+
+export type AdminFeedbackResponse = {
+  feedback: Feedback[];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
+};
+
 export const careApi = {
-  // Identity is owned by Supabase Auth; `me` hydrates the profile for the current session.
   me: () => api.get("/api/me") as Promise<MeResponse>,
   patchProfile: (
     body: Partial<{
@@ -30,6 +45,8 @@ export const careApi = {
       hasCompletedOnboarding: boolean;
     }>,
   ) => api.patch("/api/profile", body) as Promise<{ profile: UserProfile }>,
+
+  friends: () => api.get("/api/friends") as Promise<FriendProfile[]>,
 
   tasksMine: () => api.get("/api/tasks/mine") as Promise<Task[]>,
   tasksGlobal: () => api.get("/api/tasks/global") as Promise<Task[]>,
@@ -63,6 +80,10 @@ export const careApi = {
     content?: string;
     timestamp: string;
   }) => api.post("/api/interactions", body) as Promise<Interaction>,
+  markInteractionRead: (id: string) =>
+    api.patch(`/api/interactions/${id}/read`, {}) as Promise<Interaction>,
+  markInboxRead: () =>
+    api.post("/api/interactions/inbox/mark-read", {}) as Promise<{ ok: boolean }>,
 
   group: (id: string) => api.get(`/api/groups/${id}`) as Promise<Group>,
   createGroup: (name: string) =>
@@ -75,7 +96,11 @@ export const careApi = {
 
   createInvite: () => api.post("/api/invites", {}) as Promise<{ id: string }>,
   getInvite: (id: string) =>
-    api.get(`/api/invites/${id}`) as Promise<{ inviterId: string }>,
+    api.get(`/api/invites/${id}`) as Promise<{
+      valid: boolean;
+      inviterId?: string;
+      used?: boolean;
+    }>,
   acceptInvite: (id: string) =>
     api.post(`/api/invites/${id}/accept`, {}) as Promise<{ ok: boolean }>,
 
@@ -83,7 +108,28 @@ export const careApi = {
     api.post("/api/feedback", { content, type }) as Promise<{ ok: boolean }>,
 
   adminUsers: () => api.get("/api/admin/users") as Promise<UserProfile[]>,
-  adminLogs: () => api.get("/api/admin/logs") as Promise<StickerLog[]>,
+  adminLogs: (params?: { limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return api.get(
+      `/api/admin/logs${qs ? `?${qs}` : ""}`,
+    ) as Promise<AdminLogsResponse>;
+  },
+  adminFeedback: (params?: { limit?: number; offset?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.limit != null) q.set("limit", String(params.limit));
+    if (params?.offset != null) q.set("offset", String(params.offset));
+    const qs = q.toString();
+    return api.get(
+      `/api/admin/feedback${qs ? `?${qs}` : ""}`,
+    ) as Promise<AdminFeedbackResponse>;
+  },
+  reviewFeedback: (id: string) =>
+    api.patch(`/api/admin/feedback/${id}`, {}) as Promise<Feedback>,
+  setDailyChallenge: (taskId: string) =>
+    api.post(`/api/admin/tasks/${taskId}/daily-challenge`, {}) as Promise<Task>,
 };
 
 type TaskBody = {

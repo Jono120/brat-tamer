@@ -3,21 +3,26 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { Search, Settings } from "lucide-react";
-import { Card } from "../components/ui";
+import { Search, Settings, Star } from "lucide-react";
+import { Card, Button } from "../components/ui";
 import { TaskIcon } from "../components/TaskIcon";
 import { useAdmin } from "../store/hooks";
 import { useUiState } from "../store/UiStateProvider";
 
-/** Admin portal: community progress and global goals. */
+/** Admin portal: community progress, feedback triage and global goals. */
 export const AdminScreen = () => {
   const {
     allUsers,
     allUsersLogs,
+    adminFeedback,
+    adminLogsHasMore,
     globalTasks,
     today,
     adminSearchQuery,
     setAdminSearchQuery,
+    loadMoreAdminLogs,
+    reviewFeedback,
+    setDailyChallenge,
   } = useAdmin();
   const { openAddTask } = useUiState();
 
@@ -38,6 +43,37 @@ export const AdminScreen = () => {
   return (
     <div className="space-y-6 pb-12">
       <h2 className="text-lg font-bold text-brand-ink">Admin Portal</h2>
+
+      {adminFeedback.length > 0 && (
+        <Card className="border-brand-secondary/10 shadow-xl shadow-brand-secondary/5">
+          <h3 className="text-sm font-bold text-brand-ink mb-4">
+            Pending Feedback ({adminFeedback.length})
+          </h3>
+          <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+            {adminFeedback.map((fb) => (
+              <div
+                key={fb.id}
+                className="p-3 bg-bg-primary rounded-2xl border border-brand-ink/5"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-black uppercase text-brand-primary">
+                    {fb.type}
+                  </span>
+                  <span className="text-[11px] text-muted">{fb.userEmail}</span>
+                </div>
+                <p className="text-sm text-brand-ink mb-3">{fb.content}</p>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => void reviewFeedback(fb.id)}
+                >
+                  Mark reviewed
+                </Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Card className="border-brand-primary/10 shadow-xl shadow-brand-primary/5">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -95,6 +131,16 @@ export const AdminScreen = () => {
             </div>
           )}
         </div>
+        {adminLogsHasMore && (
+          <Button
+            variant="ghost"
+            fullWidth
+            className="mt-4"
+            onClick={() => void loadMoreAdminLogs()}
+          >
+            Load more logs
+          </Button>
+        )}
       </Card>
 
       <Card className="border-brand-accent/10 shadow-xl shadow-brand-accent/5">
@@ -127,14 +173,26 @@ export const AdminScreen = () => {
                       )}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    aria-label={`Edit ${t.title}`}
-                    onClick={() => openAddTask(t)}
-                    className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-brand-ink/5 rounded-lg text-muted"
-                  >
-                    <Settings size={14} strokeWidth={2} />
-                  </button>
+                  <div className="flex gap-1">
+                    {!t.isDailyChallenge && (
+                      <button
+                        type="button"
+                        aria-label={`Set ${t.title} as daily challenge`}
+                        onClick={() => void setDailyChallenge(t.id)}
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-brand-primary/10 rounded-lg text-brand-primary"
+                      >
+                        <Star size={14} strokeWidth={2} />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      aria-label={`Edit ${t.title}`}
+                      onClick={() => openAddTask(t)}
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-brand-ink/5 rounded-lg text-muted"
+                    >
+                      <Settings size={14} strokeWidth={2} />
+                    </button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="text-xs font-bold text-muted uppercase">

@@ -10,6 +10,13 @@ export interface UserProfile {
   hasCompletedOnboarding?: boolean;
 }
 
+export interface FriendProfile {
+  uid: string;
+  displayName: string;
+  photoURL: string;
+  todayStickerCount: number;
+}
+
 export interface Group {
   id: string;
   name: string;

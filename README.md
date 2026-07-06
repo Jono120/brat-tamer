@@ -1,6 +1,7 @@
 # CareStickers Application
 
 [![Supabase Deployment](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml)
+[![CI](https://github.com/Jono120/brat-tamer/actions/workflows/ci.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/ci.yml)
 
 CareStickers is a social self-care tracking application that allows users to set personal and community goals, earn stickers for completing them, and share progress with friends.
 
@@ -35,7 +36,7 @@ CareStickers is a social self-care tracking application that allows users to set
 | HTTP API & routes               | `server/src/index.ts`                                     |
 | `@supabase/server` (Express)    | `server/src/supabaseServer.ts`                            |
 | Edge Functions                  | `supabase/functions/`                                     |
-| Database schema (canonical)     | `supabase/migrations/` (`0001` app tables, `0002` auth link) |
+| Database schema (canonical)     | `supabase/migrations/` (`0001` app tables, `0002` auth link, `0003` Storage avatars, `0004` daily challenge, `0005` RLS/Realtime) |
 | DB pool, SSL & optional auto-migrate | `server/src/db.ts`                                   |
 | Supabase CLI config & seed      | `supabase/config.toml`, `supabase/seed.sql`               |
 | Capacitor config                | `capacitor.config.ts`                                     |

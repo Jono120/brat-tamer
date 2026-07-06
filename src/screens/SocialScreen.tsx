@@ -3,14 +3,25 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { useEffect } from "react";
 import { motion } from "motion/react";
 import { Users, HandMetal, MessageCircle } from "lucide-react";
 import { EmptyState, ListSkeleton, IconButton } from "../components/ui";
 import { useSocial } from "../store/hooks";
 
-/** Social feed of interactions plus quick high-fives. */
+/** Social feed of interactions plus real friend high-fives. */
 export const SocialScreen = () => {
-  const { interactions, sendInteraction, hasLoadedData } = useSocial();
+  const {
+    interactions,
+    friends,
+    sendInteraction,
+    markInboxRead,
+    hasLoadedData,
+  } = useSocial();
+
+  useEffect(() => {
+    void markInboxRead();
+  }, [markInboxRead]);
 
   return (
     <div className="space-y-6">
@@ -78,28 +89,49 @@ export const SocialScreen = () => {
       )}
 
       <div className="pt-4">
-        <h3 className="text-sm font-bold text-brand-ink mb-4">
-          Quick High-Five (Demo)
-        </h3>
-        <div className="flex gap-2 overflow-x-auto pb-2">
-          {[1, 2, 3].map((i) => (
-            <div
-              key={i}
-              className="flex-shrink-0 bg-card-bg p-3 rounded-2xl border border-brand-ink/5 flex items-center gap-3"
-            >
-              <div className="w-8 h-8 rounded-full bg-brand-ink/10" />
-              <div className="text-sm font-bold text-brand-ink">Friend {i}</div>
-              <IconButton
-                label={`Send high-five to Friend ${i}`}
-                size="sm"
-                className="bg-brand-accent text-brand-ink"
-                onClick={() => sendInteraction("mock-id", "high-five")}
+        <h3 className="text-sm font-bold text-brand-ink mb-4">Friends</h3>
+        {friends.length > 0 ? (
+          <div className="space-y-2">
+            {friends.map((friend) => (
+              <div
+                key={friend.uid}
+                className="flex items-center gap-3 bg-card-bg p-3 rounded-2xl border border-brand-ink/5"
               >
-                <HandMetal size={14} strokeWidth={2} />
-              </IconButton>
-            </div>
-          ))}
-        </div>
+                <img
+                  src={
+                    friend.photoURL ||
+                    `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.uid}`
+                  }
+                  alt=""
+                  className="w-10 h-10 rounded-full object-cover border border-brand-ink/10"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold text-brand-ink truncate">
+                    {friend.displayName}
+                  </div>
+                  <div className="text-[11px] text-muted uppercase font-black">
+                    {friend.todayStickerCount} sticker
+                    {friend.todayStickerCount === 1 ? "" : "s"} today
+                  </div>
+                </div>
+                <IconButton
+                  label={`Send high-five to ${friend.displayName}`}
+                  size="sm"
+                  className="bg-brand-accent text-brand-ink"
+                  onClick={() => sendInteraction(friend.uid, "high-five")}
+                >
+                  <HandMetal size={14} strokeWidth={2} />
+                </IconButton>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<Users size={32} strokeWidth={2} />}
+            title="No friends yet"
+            description="Use Invite Friend in Settings to connect with someone!"
+          />
+        )}
       </div>
     </div>
   );
