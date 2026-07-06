@@ -41,6 +41,7 @@ export type Database = {
     Tables: {
       feedback: {
         Row: {
+          author_id: number | null
           content: string
           id: string
           status: string
@@ -50,6 +51,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          author_id?: number | null
           content: string
           id?: string
           status?: string
@@ -59,6 +61,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          author_id?: number | null
           content?: string
           id?: string
           status?: string
