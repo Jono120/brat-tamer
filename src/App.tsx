@@ -10,11 +10,12 @@ import { DataProvider } from "./store/DataProvider";
 import { UiStateProvider } from "./store/UiStateProvider";
 import { useAuth } from "./store/hooks";
 import { AuthScreen } from "./screens/AuthScreen";
+import { UpdatePasswordScreen } from "./screens/UpdatePasswordScreen";
 import { AppShell } from "./components/AppShell";
 
 /** Decides between the loading state, auth screen and the app shell. */
 function Root() {
-  const { isAuthReady, user } = useAuth();
+  const { isAuthReady, user, isPasswordRecovery } = useAuth();
 
   if (!isAuthReady) {
     return (
@@ -27,6 +28,9 @@ function Root() {
   }
 
   if (!user) return <AuthScreen />;
+
+  // Recovery-link sessions must set a new password before entering the app.
+  if (isPasswordRecovery) return <UpdatePasswordScreen />;
 
   return (
     <UiStateProvider>

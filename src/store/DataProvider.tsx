@@ -24,7 +24,7 @@ import {
   registerNativePushIfPermitted,
   requestAndRegisterNativePush,
 } from "../lib/nativePush";
-import type { Session } from "@supabase/supabase-js";
+import type { EmailOtpType, Session } from "@supabase/supabase-js";
 import {
   Task,
   StickerLog,
@@ -101,6 +101,10 @@ interface DataContextValue {
   register: (email: string, password: string) => Promise<void>;
   loginWithProvider: (provider: "google" | "apple") => Promise<void>;
   sendMagicLink: (email: string) => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  updatePassword: (newPassword: string) => Promise<void>;
+  /** True while the user arrived via a password-recovery link and must set a new password. */
+  isPasswordRecovery: boolean;
   logout: () => Promise<void>;
   toggleTheme: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
@@ -163,6 +167,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
   const [onboardingStep, setOnboardingStep] = useState<number | null>(null);
   const [adminSearchQuery, setAdminSearchQuery] = useState("");
   const [group, setGroup] = useState<Group | null>(null);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const seenInteractionIds = useRef<Set<string>>(new Set());
   const notificationPrimed = useRef(false);
 
@@ -188,11 +193,29 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     const err = params.get("error");
     if (invite) setInviteCode(invite);
     if (err) toast.error(`Sign-in failed (${err})`);
-    if (invite || err) {
+
+    // PKCE email-link token exchange (signup confirmation, recovery, magic link,
+    // email change). The email templates link to
+    // `<site>/auth/confirm?token_hash=...&type=...`; being a client-only SPA we
+    // exchange the token hash for a session right here instead of on a server
+    // endpoint. onAuthStateChange below then hydrates the signed-in user.
+    const tokenHash = params.get("token_hash");
+    const otpType = params.get("type") as EmailOtpType | null;
+    if (tokenHash && otpType) {
+      void supabase.auth
+        .verifyOtp({ token_hash: tokenHash, type: otpType })
+        .then(({ error }) => {
+          if (error) toast.error(`Sign-in link failed: ${error.message}`);
+          else if (otpType === "recovery") setIsPasswordRecovery(true);
+        });
+    }
+
+    if (invite || err || tokenHash) {
       window.history.replaceState(
         {},
         document.title,
-        window.location.pathname + window.location.hash,
+        window.location.pathname.replace(/^\/auth\/confirm/, "/") +
+          window.location.hash,
       );
     }
 
@@ -218,7 +241,9 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       }
     };
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // Covers recovery links handled internally by supabase-js (e.g. implicit flow).
+      if (event === "PASSWORD_RECOVERY") setIsPasswordRecovery(true);
       // Defer to avoid re-entrancy issues with the supabase-js auth lock.
       setTimeout(() => void hydrate(session), 0);
     });
@@ -479,10 +504,27 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     if (error) throw new Error(error.message);
   }, []);
 
+  const resetPassword = useCallback(async (email: string) => {
+    // With the PKCE recovery template the email links to
+    // `<site>/auth/confirm?token_hash=...&type=recovery`; redirectTo covers projects
+    // still on the default implicit-flow template.
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/`,
+    });
+    if (error) throw new Error(error.message);
+  }, []);
+
+  const updatePassword = useCallback(async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) throw new Error(error.message);
+    setIsPasswordRecovery(false);
+  }, []);
+
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
     setProfile(null);
+    setIsPasswordRecovery(false);
     setTasks([]);
     setLogs([]);
     setAllLogs([]);
@@ -856,6 +898,9 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     register,
     loginWithProvider,
     sendMagicLink,
+    resetPassword,
+    updatePassword,
+    isPasswordRecovery,
     logout,
     toggleTheme,
     completeOnboarding,

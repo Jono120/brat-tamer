@@ -15,9 +15,24 @@ import { errorMessage } from "../lib/errors";
 // admin bypass below. Public by design for the local stack; never valid in production.
 const DEV_SEED_PASSWORD = "password123";
 
+/**
+ * Friendlier copy for the "provider is not enabled" error returned while the Google /
+ * Apple OAuth credentials are still placeholders (see .env.local and docs/SUPABASE.md
+ * "2. Auth provider configuration").
+ */
+function providerErrorMessage(provider: "google" | "apple", e: unknown): string {
+  const raw = errorMessage(e);
+  if (/not enabled|unsupported provider/i.test(raw)) {
+    const label = provider === "google" ? "Google" : "Apple";
+    return `${label} sign-in isn't set up yet. An administrator needs to configure the ${label} OAuth credentials in Supabase first.`;
+  }
+  return raw;
+}
+
 /** Sign-in / sign-up screen shown to unauthenticated users. */
 export const AuthScreen = () => {
-  const { login, register, loginWithProvider, sendMagicLink } = useAuth();
+  const { login, register, loginWithProvider, sendMagicLink, resetPassword } =
+    useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLogin, setIsLogin] = useState(true);
@@ -72,6 +87,23 @@ export const AuthScreen = () => {
     try {
       await sendMagicLink(email);
       setAuthNotice("Magic link sent! Check your email to sign in.");
+    } catch (e) {
+      setAuthError(errorMessage(e));
+    }
+  };
+
+  const onForgotPassword = async () => {
+    setAuthError("");
+    setAuthNotice("");
+    if (!email) {
+      setAuthError("Enter your email first.");
+      return;
+    }
+    try {
+      await resetPassword(email);
+      setAuthNotice(
+        "Password reset email sent! Follow the link to choose a new password.",
+      );
     } catch (e) {
       setAuthError(errorMessage(e));
     }
@@ -142,6 +174,15 @@ export const AuthScreen = () => {
           >
             Email me a magic link
           </button>
+          {isLogin && (
+            <button
+              type="button"
+              onClick={() => void onForgotPassword()}
+              className="min-h-[44px] w-full text-xs font-bold text-brand-primary uppercase tracking-widest"
+            >
+              Forgot password?
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setIsLogin(!isLogin)}
@@ -170,7 +211,7 @@ export const AuthScreen = () => {
               try {
                 await loginWithProvider("google");
               } catch (e) {
-                setAuthError(errorMessage(e));
+                setAuthError(providerErrorMessage("google", e));
               }
             }}
             className="w-full py-3 min-h-[48px] bg-white text-brand-ink border-2 border-brand-ink/10 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2"
@@ -202,7 +243,7 @@ export const AuthScreen = () => {
               try {
                 await loginWithProvider("apple");
               } catch (e) {
-                setAuthError(errorMessage(e));
+                setAuthError(providerErrorMessage("apple", e));
               }
             }}
             className="w-full py-3 min-h-[48px] bg-white text-brand-ink border-2 border-brand-ink/10 rounded-xl font-bold text-sm shadow-sm flex items-center justify-center gap-2"
