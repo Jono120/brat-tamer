@@ -66,9 +66,12 @@ export const careApi = {
     date: string;
     earnedAt: string;
     count?: number;
+    note?: string;
   }) => api.post("/api/logs", body) as Promise<StickerLog>,
-  updateLog: (id: string, body: { count?: number; earnedAt?: string }) =>
-    api.patch(`/api/logs/${id}`, body) as Promise<StickerLog>,
+  updateLog: (
+    id: string,
+    body: { count?: number; earnedAt?: string; note?: string },
+  ) => api.patch(`/api/logs/${id}`, body) as Promise<StickerLog>,
   deleteLog: (id: string) =>
     api.delete(`/api/logs/${id}`) as Promise<{ ok: boolean }>,
 
@@ -107,6 +110,13 @@ export const careApi = {
   submitFeedback: (content: string, type: "feature" | "issue") =>
     api.post("/api/feedback", { content, type }) as Promise<{ ok: boolean }>,
 
+  registerPushToken: (token: string, platform: "ios" | "android" | "web") =>
+    api.post("/api/push/register", { token, platform }) as Promise<{
+      ok: boolean;
+    }>,
+  unregisterPushToken: (token: string) =>
+    api.delete("/api/push/register", { token }) as Promise<{ ok: boolean }>,
+
   adminUsers: () => api.get("/api/admin/users") as Promise<UserProfile[]>,
   adminLogs: (params?: { limit?: number; offset?: number }) => {
     const q = new URLSearchParams();
@@ -140,6 +150,7 @@ type TaskBody = {
   isDailyChallenge?: boolean;
   description?: string;
   targetCount?: number;
+  requiresNote?: boolean;
 };
 
 function buildTaskBody(b: {
@@ -150,6 +161,7 @@ function buildTaskBody(b: {
   isDailyChallenge?: boolean;
   description?: string;
   targetCount?: number;
+  requiresNote?: boolean;
 }): TaskBody {
   return {
     title: b.title,
@@ -159,5 +171,6 @@ function buildTaskBody(b: {
     isDailyChallenge: b.isDailyChallenge,
     description: b.description,
     targetCount: b.targetCount,
+    requiresNote: b.requiresNote,
   };
 }

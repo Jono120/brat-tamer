@@ -41,7 +41,7 @@ export const AdminScreen = () => {
     });
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className="space-y-6 pb-12 w-full max-w-3xl mx-auto">
       <h2 className="text-lg font-bold text-brand-ink">Admin Portal</h2>
 
       {adminFeedback.length > 0 && (

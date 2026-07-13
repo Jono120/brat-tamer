@@ -3,12 +3,17 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "motion/react";
 import { Smile } from "lucide-react";
 import { Button } from "../components/ui";
 import { useAuth } from "../store/hooks";
+import { ADMIN_EMAILS } from "../constants";
 import { errorMessage } from "../lib/errors";
+
+// Password of the seeded local accounts (supabase/seed.sql) used by the dev-only
+// admin bypass below. Public by design for the local stack; never valid in production.
+const DEV_SEED_PASSWORD = "password123";
 
 /** Sign-in / sign-up screen shown to unauthenticated users. */
 export const AuthScreen = () => {
@@ -19,6 +24,24 @@ export const AuthScreen = () => {
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const devBypassAttempted = useRef<string | null>(null);
+
+  // Dev-only login bypass: on the Vite dev server, typing an admin email
+  // (VITE_ADMIN_EMAILS) signs in immediately with the seeded local password —
+  // a real Supabase session, so API calls work. Inert in production builds.
+  useEffect(() => {
+    if (!import.meta.env.DEV || !isLogin || busy) return;
+    const normalized = email.trim().toLowerCase();
+    if (!ADMIN_EMAILS.includes(normalized)) return;
+    if (devBypassAttempted.current === normalized) return;
+    devBypassAttempted.current = normalized;
+    setAuthError("");
+    setAuthNotice("Dev bypass: signing in as admin\u2026");
+    void login(normalized, DEV_SEED_PASSWORD).catch((e) => {
+      setAuthNotice("");
+      setAuthError(`Dev bypass failed: ${errorMessage(e)}`);
+    });
+  }, [email, isLogin, busy, login]);
 
   const submit = async () => {
     setAuthError("");

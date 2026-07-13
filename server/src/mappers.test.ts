@@ -41,6 +41,7 @@ describe("mappers", () => {
       is_daily_challenge: false,
       description: "desc",
       target_count: 3,
+      requires_note: true,
     };
     const out = mapTaskRow(row);
     expect(out.id).toBe("t1");
@@ -48,6 +49,7 @@ describe("mappers", () => {
     expect(out.frequency).toBe("weekly");
     expect(out.isGlobal).toBe(true);
     expect(out.targetCount).toBe(3);
+    expect(out.requiresNote).toBe(true);
     expect(out.createdAt).toMatch(/2026-01-01/);
   });
 
@@ -59,10 +61,13 @@ describe("mappers", () => {
       date: "2026-04-01",
       earned_at: "2026-04-01T10:00:00.000Z",
       count: 2,
+      note: "Sunny walk",
     };
     const out = mapLogRow(row);
     expect(out.date).toBe("2026-04-01");
     expect(out.count).toBe(2);
+    expect(out.note).toBe("Sunny walk");
+    expect(mapLogRow({ ...row, note: null }).note).toBeUndefined();
   });
 
   it("mapInteractionRow maps interaction", () => {

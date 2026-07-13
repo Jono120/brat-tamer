@@ -15,6 +15,11 @@
 }
 
 :root {
+  color-scheme: light;
+  /* Fluid type scale: everything in the app is rem-based (Tailwind), so
+     scaling the root font size scales the whole UI smoothly from small
+     phones (~15px) up to laptop screens (~17px). */
+  font-size: clamp(15px, 14px + 0.4vw, 17px);
   --bg-color: #fef9ef;
   --primary: #ff865e;
   --secondary: #a2d2ff;
@@ -29,6 +34,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --bg-color: #1a1b26;
   --primary: #ff865e;
   --secondary: #3d5afe;
@@ -81,8 +87,9 @@ body {
 }
 
 /* --- Responsive app shell ---
-   Mobile (< md): full-bleed. Desktop (>= md): a breathing, centered
-   phone-style column with subtle device framing. */
+   Mobile (< md): full-bleed, exactly like a native phone app.
+   Tablet/laptop (>= md): a centered, card-style column that scales up
+   with the viewport instead of staying locked to a phone width. */
 .app-container {
   width: 100%;
   min-height: 100vh;
@@ -101,15 +108,29 @@ body {
     );
   }
   .app-container {
-    max-width: 460px;
+    /* Fluid width: ~92% of the viewport, growing from a large-phone
+       column on small tablets up to a comfortable laptop layout. */
+    max-width: clamp(480px, 92vw, 640px);
     min-height: auto;
     height: calc(100dvh - 4rem);
     margin-block: 2rem;
-    border-radius: 44px;
+    border-radius: 36px;
     box-shadow: 0 24px 70px rgba(0, 0, 0, 0.18);
-    border: 8px solid #2b2d42;
+    border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
     overflow: hidden;
     position: relative;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-container {
+    max-width: 800px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .app-container {
+    max-width: 960px;
   }
 }
 

@@ -16,6 +16,7 @@ export interface PendingTaskUpdate {
   isDailyChallenge: boolean;
   description: string;
   targetCount: number;
+  requiresNote: boolean;
 }
 
 interface UiStateContextValue {

@@ -76,9 +76,11 @@ working unchanged. Admin status is derived at request time from `ADMIN_EMAILS`.
 
 ### Capacitor / native deep links
 
-Configure the native redirect URL (custom scheme / universal link) in Supabase Auth and pass it
-via `signInWithOAuth({ options: { redirectTo } })`. On native, Apple Sign-In may use the Capacitor
-Apple plugin feeding `signInWithIdToken`; document the chosen path when implementing native builds.
+Implemented: on native, `loginWithProvider` calls
+`signInWithOAuth({ options: { redirectTo: "com.carestickers.app://auth-callback", skipBrowserRedirect: true } })`
+and opens the auth URL in the system browser (`@capacitor/browser`); the `appUrlOpen` deep-link
+listener in `src/lib/native.ts` exchanges the PKCE code for a session. Remember to add the custom
+scheme to the hosted dashboard redirect allow-list (see [MOBILE_RELEASE.md](MOBILE_RELEASE.md)).
 
 ## 3. Local development
 
@@ -105,7 +107,7 @@ Use a **dedicated staging Supabase project** (recommended) or Supabase **branchi
 
 1. Create a second Supabase project for staging.
 2. Add GitHub secrets: `SUPABASE_STAGING_PROJECT_ID`, `SUPABASE_STAGING_DB_PASSWORD` (plus `SUPABASE_ACCESS_TOKEN`).
-3. Run the **Deploy → deploy-staging** workflow (`workflow_dispatch`) to apply migrations.
+3. Run the **Supabase → Apply migrations (staging)** workflow (`workflow_dispatch`) to apply migrations.
 4. Point local/staging `.env` at the staging project URL and keys.
 5. E2E tests: set `E2E_EMAIL` / `E2E_PASSWORD` to seeded users and `PLAYWRIGHT_BASE_URL` to your staging URL; run `npm run test:e2e`.
 
@@ -163,16 +165,24 @@ Notes:
 ## 8. Security notes
 
 - The Express server connects with a privileged DB role and bypasses RLS for server queries.
-  RLS is enabled on app tables (`0005_rls_realtime.sql`) for direct client/Realtime access.
+  RLS is enabled on all app tables (`0005_rls_realtime.sql`, `0006_security_hardening.sql`) for
+  direct client/Realtime access.
+- `ADMIN_EMAILS` is the single source of truth for admin access; the server syncs `users.role` on
+  each profile load.
+- Group join codes are 12-character cryptographically random hex strings; group join is rate-limited.
+- Friend invite metadata is only returned when the invite is valid or the caller is the inviter.
 - The `VITE_SUPABASE_ANON_KEY` is public by design; RLS policies scope direct table access.
   Keep the `service_role` key server-side only and out of the repo; never expose it to the frontend.
 - The frontend only holds the Supabase session (access/refresh tokens) and the anon key.
+- Production migrations and Edge Function deploys use the GitHub `production` environment (configure
+  required reviewers in repo Settings → Environments).
+- Container images are scanned with Trivy before push; keep the GHCR package private.
 
 ## 9. Implemented platform features
 
 - **Storage for avatars**: migration `0003_storage_buckets.sql`; clients upload to the `avatars` bucket and store the path in `users.photo_url`. The API resolves signed URLs on read.
 - **Realtime (optional)**: migration `0005_rls_realtime.sql` enables RLS + Realtime publication. The client subscribes via `src/lib/realtimeSync.ts` and still falls back to visibility-aware polling.
-- **Daily challenge rotation**: migration `0004_daily_challenge.sql` enforces a single active challenge; Edge Function `rotate-daily-challenge` rotates nightly (configure cron in dashboard).
+- **Daily challenge rotation**: `is_daily_challenge` is defined in `0001_initial_schema.sql`; Edge Function `rotate-daily-challenge` (`auth: "secret"`) rotates nightly — configure cron in the dashboard with the `Authorization: Bearer <SUPABASE_SECRET_KEY>` header.
 - **Observability**: structured JSON error logs in `server/src/logger.ts`; optional `SENTRY_DSN` for client/server error tracking (env-gated).
 
 ## 10. Future opportunities

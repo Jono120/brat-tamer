@@ -21,6 +21,7 @@ import { Card, Toggle, Button, IconButton } from "../components/ui";
 import { useToast } from "../components/ui/Toast";
 import { useAuth, useSocial } from "../store/hooks";
 import { useUiState } from "../store/UiStateProvider";
+import { resolveTheme } from "../lib/theme";
 
 /** Settings: profile, groups, appearance, notifications, help, account. */
 export const SettingsScreen = () => {
@@ -42,10 +43,11 @@ export const SettingsScreen = () => {
     setShowCreateGroup,
   } = useUiState();
 
-  const isDark = profile?.theme === "dark";
+  const isDark = resolveTheme(profile?.theme) === "dark";
+  const followsDevice = !profile?.theme;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-2xl mx-auto">
       <h2 className="text-lg font-bold text-brand-ink">Settings</h2>
 
       <div className="space-y-4">
@@ -172,6 +174,7 @@ export const SettingsScreen = () => {
           </div>
           <div className="text-xs font-bold text-muted uppercase tracking-wider">
             {isDark ? "Dark Mode Active" : "Light Mode Active"}
+            {followsDevice ? " (Matching Device)" : ""}
           </div>
         </Card>
 

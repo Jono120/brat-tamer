@@ -11,6 +11,7 @@ export function mapUserRow(
   role?: "admin" | "user" | "group-admin";
   groupId?: string;
   hasCompletedOnboarding?: boolean;
+  authProvider?: string;
 } {
   return {
     uid: String(row.id),
@@ -25,6 +26,7 @@ export function mapUserRow(
         : undefined,
     groupId: row.group_id != null ? String(row.group_id) : undefined,
     hasCompletedOnboarding: Boolean(row.has_completed_onboarding),
+    authProvider: row.auth_provider != null ? String(row.auth_provider) : "email",
   };
 }
 
@@ -42,6 +44,7 @@ export function mapTaskRow(row: Record<string, unknown>) {
     description: row.description != null ? String(row.description) : undefined,
     targetCount:
       row.target_count != null ? Number(row.target_count) : undefined,
+    requiresNote: Boolean(row.requires_note),
   };
 }
 
@@ -56,6 +59,7 @@ export function mapLogRow(row: Record<string, unknown>) {
         : String(row.date).slice(0, 10),
     earnedAt: new Date(row.earned_at as string).toISOString(),
     count: row.count != null ? Number(row.count) : undefined,
+    note: row.note != null ? String(row.note) : undefined,
   };
 }
 

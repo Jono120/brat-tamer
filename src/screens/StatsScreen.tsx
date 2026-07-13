@@ -58,7 +58,7 @@ export const StatsScreen = () => {
   ).getDate();
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-2xl mx-auto">
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-brand-primary/10 rounded-[32px] p-5 border-2 border-brand-primary/20">
           <div className="text-xs font-bold uppercase tracking-wider text-muted-strong mb-1">
@@ -262,7 +262,7 @@ export const StatsScreen = () => {
         <h2 className="text-lg font-bold text-brand-ink mb-4">
           Badges & Achievements
         </h2>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-3 @2xl:grid-cols-6 gap-4">
           {badges.map((badge) => (
             <div
               key={badge.id}

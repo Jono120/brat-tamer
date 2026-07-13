@@ -360,7 +360,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      rotate_daily_challenge: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
+      }
+      set_daily_challenge: {
+        Args: {
+          p_task_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       [_ in never]: never

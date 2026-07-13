@@ -8,6 +8,11 @@ export interface UserProfile {
   role?: "admin" | "user" | "group-admin";
   groupId?: string;
   hasCompletedOnboarding?: boolean;
+  /**
+   * How the user signed up: "email" (email/password, hashed by Supabase Auth) or a
+   * third-party OAuth provider ("google", "apple"). OAuth users have no password.
+   */
+  authProvider?: string;
 }
 
 export interface FriendProfile {
@@ -38,6 +43,8 @@ export interface Task {
   isDailyChallenge?: boolean;
   description?: string;
   targetCount?: number;
+  /** Admin-controlled: prompts the user for a note before earning the sticker. */
+  requiresNote?: boolean;
 }
 
 export interface Interaction {
@@ -57,6 +64,8 @@ export interface StickerLog {
   date: string; // YYYY-MM-DD
   earnedAt: string;
   count?: number;
+  /** Optional free-text note, e.g. gratitude entry for the daily challenge. */
+  note?: string;
 }
 
 export interface Invite {

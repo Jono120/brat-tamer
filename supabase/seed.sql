@@ -232,6 +232,10 @@ VALUES
   )
 ON CONFLICT (id) DO NOTHING;
 
+-- The gratitude challenge prompts for a note before the sticker is earned.
+UPDATE public.tasks SET requires_note = TRUE
+WHERE id = 'b0000000-0000-4000-8000-000000000003';
+
 INSERT INTO public.sticker_logs (id, user_id, task_id, date, earned_at, count)
 VALUES
   (

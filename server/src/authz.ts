@@ -1,5 +1,7 @@
 import type pg from "pg";
 
+import crypto from "crypto";
+
 export const INTERACTION_TYPES = ["high-five", "message"] as const;
 export type InteractionType = (typeof INTERACTION_TYPES)[number];
 
@@ -98,4 +100,9 @@ export function validatePhotoUrl(photoURL: string): AuthzError | null {
     return null;
   }
   return { status: 400, error: "Invalid photo URL" };
+}
+
+/** Cryptographically secure group join code (12 hex characters). */
+export function generateGroupInviteCode(): string {
+  return crypto.randomBytes(6).toString("hex").toUpperCase();
 }

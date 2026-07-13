@@ -1,15 +1,16 @@
-import dotenv from "dotenv";
-dotenv.config();
-dotenv.config({ path: ".env.local", override: true });
+import "./env.js";
 import cors from "cors";
 import express from "express";
+import helmet from "helmet";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
 
 import { resolvePhotoUrl } from "./avatarUrl.js";
+import { userIsAdmin, isAdminEmail, syncAdminRole } from "./admin.js";
 import {
   canAccessGroup,
+  generateGroupInviteCode,
   inviteAlreadyUsed,
   validateInteraction,
   validatePhotoUrl,
@@ -26,8 +27,17 @@ import {
   mapTaskRow,
   mapUserRow,
 } from "./mappers.js";
-import { apiLimiter, writeLimiter } from "./rateLimit.js";
+import { sendPushToUser, validatePushRegistration } from "./push.js";
+import { apiLimiter, joinLimiter, writeLimiter } from "./rateLimit.js";
 import { jwtAuth, warnIfSupabaseAuthMissing } from "./supabaseServer.js";
+import {
+  clampTaskDescription,
+  normalizeLogNote,
+  validateDisplayName,
+  validateFeedback,
+  validateTaskPayload,
+  validateTheme,
+} from "./validation.js";
 
 type TaskPayload = {
   title: string;
@@ -37,25 +47,12 @@ type TaskPayload = {
   isDailyChallenge?: boolean;
   description?: string;
   targetCount?: number;
+  requiresNote?: boolean;
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const PORT = Number(process.env.PORT) || 3001;
-
-function adminEmails(): Set<string> {
-  return new Set(
-    (process.env.ADMIN_EMAILS || "")
-      .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean),
-  );
-}
-
-function isAdminEmail(email: string | null | undefined): boolean {
-  if (!email) return false;
-  return adminEmails().has(email.toLowerCase());
-}
 
 async function getFriendIds(userId: string): Promise<string[]> {
   const r = await pool.query(
@@ -84,7 +81,10 @@ async function ensureUserRow(
   const existing = await pool.query("SELECT id FROM users WHERE id = $1", [
     userId,
   ]);
-  if (existing.rows.length > 0) return;
+  if (existing.rows.length > 0) {
+    await syncAdminRole(pool, userId, email);
+    return;
+  }
   const safeEmail = email || `user-${userId}@no-email.local`;
   const role = isAdminEmail(safeEmail) ? "admin" : "user";
   await pool.query(
@@ -107,19 +107,12 @@ async function requireAdmin(
   next: express.NextFunction,
 ) {
   const uid = req.userId!;
-  const r = await pool.query("SELECT email, role FROM users WHERE id = $1", [
-    uid,
-  ]);
-  if (r.rows.length === 0) {
+  const isAdmin = await userIsAdmin(pool, uid);
+  if (!isAdmin) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  const row = r.rows[0];
-  if (row.role === "admin" || isAdminEmail(String(row.email))) {
-    next();
-    return;
-  }
-  res.status(403).json({ error: "Forbidden" });
+  next();
 }
 
 async function main() {
@@ -132,14 +125,23 @@ async function main() {
   await initSchema();
 
   const app = express();
+  if (process.env.NODE_ENV !== "test") {
+    app.set("trust proxy", 1);
+  }
   const allowedCorsOrigins = buildAllowedCorsOrigins();
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
   app.use(
     cors({
       origin: Array.from(allowedCorsOrigins),
       credentials: true,
     }),
   );
-  app.use(express.json({ limit: "6mb" }));
+  app.use(express.json({ limit: "1mb" }));
   app.use("/api", apiLimiter);
 
   app.get("/api/health", async (_req, res) => {
@@ -199,8 +201,13 @@ async function main() {
       const vals: unknown[] = [];
       let i = 1;
       if (body.displayName != null) {
+        const nameErr = validateDisplayName(body.displayName);
+        if (nameErr) {
+          res.status(nameErr.status).json({ error: nameErr.error });
+          return;
+        }
         updates.push(`display_name = $${i++}`);
-        vals.push(body.displayName);
+        vals.push(body.displayName.trim());
       }
       if (body.photoURL != null) {
         const photoErr = validatePhotoUrl(body.photoURL);
@@ -212,6 +219,11 @@ async function main() {
         vals.push(body.photoURL);
       }
       if (body.theme != null) {
+        const themeErr = validateTheme(body.theme);
+        if (themeErr) {
+          res.status(themeErr.status).json({ error: themeErr.error });
+          return;
+        }
         updates.push(`theme = $${i++}`);
         vals.push(body.theme);
       }
@@ -298,32 +310,29 @@ async function main() {
   app.post("/api/tasks", jwtAuth, async (req, res) => {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
-      const admin = await pool.query(
-        `SELECT role, email FROM users WHERE id = $1`,
-        [uid],
-      );
-      const isAdm =
-        admin.rows[0]?.role === "admin" ||
-        isAdminEmail(String(admin.rows[0]?.email));
+      const isAdm = await userIsAdmin(pool, uid);
       const b = req.body as Partial<TaskPayload>;
-      if (!b.title?.trim() || !b.icon) {
-        res.status(400).json({ error: "title and icon required" });
+      const payloadErr = validateTaskPayload(b.title, b.icon);
+      if (payloadErr) {
+        res.status(payloadErr.status).json({ error: payloadErr.error });
         return;
       }
       const isGlobal = Boolean(b.isGlobal) && isAdm;
       const isDailyChallenge = Boolean(b.isDailyChallenge) && isAdm;
+      const requiresNote = Boolean(b.requiresNote) && isAdm;
       const r = await pool.query(
-        `INSERT INTO tasks (user_id, title, icon, frequency, created_at, is_global, is_daily_challenge, description, target_count)
-         VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8) RETURNING *`,
+        `INSERT INTO tasks (user_id, title, icon, frequency, created_at, is_global, is_daily_challenge, description, target_count, requires_note)
+         VALUES ($1, $2, $3, $4, NOW(), $5, $6, $7, $8, $9) RETURNING *`,
         [
           uid,
-          b.title,
-          b.icon,
+          b.title!.trim(),
+          b.icon!.trim(),
           b.frequency || "daily",
           isGlobal,
           isDailyChallenge,
-          b.description ?? "",
+          clampTaskDescription(b.description ?? ""),
           b.targetCount ?? 1,
+          requiresNote,
         ],
       );
       res.json(mapTaskRow(r.rows[0]));
@@ -343,13 +352,7 @@ async function main() {
         return;
       }
       const task = t.rows[0];
-      const admin = await pool.query(
-        `SELECT role, email FROM users WHERE id = $1`,
-        [uid],
-      );
-      const isAdm =
-        admin.rows[0]?.role === "admin" ||
-        isAdminEmail(String(admin.rows[0]?.email));
+      const isAdm = await userIsAdmin(pool, uid);
       const owner = String(task.user_id) === uid;
       if (!owner && !isAdm) {
         res.status(403).json({ error: "Forbidden" });
@@ -377,7 +380,7 @@ async function main() {
       }
       if (b.description !== undefined) {
         sets.push(`description = $${n++}`);
-        vals.push(b.description);
+        vals.push(clampTaskDescription(b.description));
       }
       if (b.targetCount !== undefined) {
         sets.push(`target_count = $${n++}`);
@@ -390,6 +393,10 @@ async function main() {
       if (b.isDailyChallenge !== undefined && isAdm) {
         sets.push(`is_daily_challenge = $${n++}`);
         vals.push(Boolean(b.isDailyChallenge));
+      }
+      if (b.requiresNote !== undefined && isAdm) {
+        sets.push(`requires_note = $${n++}`);
+        vals.push(Boolean(b.requiresNote));
       }
       if (sets.length === 0) {
         const cur = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
@@ -419,13 +426,7 @@ async function main() {
         return;
       }
       const task = t.rows[0];
-      const admin = await pool.query(
-        `SELECT role, email FROM users WHERE id = $1`,
-        [uid],
-      );
-      const isAdm =
-        admin.rows[0]?.role === "admin" ||
-        isAdminEmail(String(admin.rows[0]?.email));
+      const isAdm = await userIsAdmin(pool, uid);
       const owner = String(task.user_id) === uid;
       if (!owner && !isAdm) {
         res.status(403).json({ error: "Forbidden" });
@@ -474,15 +475,17 @@ async function main() {
         date: string;
         earnedAt: string;
         count?: number;
+        note?: string;
       };
       const taskErr = await validateTaskForLog(pool, uid, b.taskId);
       if (taskErr) {
         res.status(taskErr.status).json({ error: taskErr.error });
         return;
       }
+      const note = normalizeLogNote(b.note);
       const r = await pool.query(
-        `INSERT INTO sticker_logs (user_id, task_id, date, earned_at, count) VALUES ($1, $2, $3::date, $4::timestamptz, $5) RETURNING *`,
-        [uid, b.taskId, b.date, b.earnedAt, b.count ?? 1],
+        `INSERT INTO sticker_logs (user_id, task_id, date, earned_at, count, note) VALUES ($1, $2, $3::date, $4::timestamptz, $5, $6) RETURNING *`,
+        [uid, b.taskId, b.date, b.earnedAt, b.count ?? 1, note],
       );
       res.json(mapLogRow(r.rows[0]));
     } catch (e) {
@@ -495,7 +498,7 @@ async function main() {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
       const id = req.params.id;
-      const b = req.body as { count?: number; earnedAt?: string };
+      const b = req.body as { count?: number; earnedAt?: string; note?: string };
       const r = await pool.query("SELECT * FROM sticker_logs WHERE id = $1", [
         id,
       ]);
@@ -503,9 +506,10 @@ async function main() {
         res.status(403).json({ error: "Forbidden" });
         return;
       }
+      const note = normalizeLogNote(b.note);
       await pool.query(
-        `UPDATE sticker_logs SET count = COALESCE($1, count), earned_at = COALESCE($2::timestamptz, earned_at) WHERE id = $3`,
-        [b.count ?? null, b.earnedAt ?? null, id],
+        `UPDATE sticker_logs SET count = COALESCE($1, count), earned_at = COALESCE($2::timestamptz, earned_at), note = COALESCE($3, note) WHERE id = $4`,
+        [b.count ?? null, b.earnedAt ?? null, note, id],
       );
       const u = await pool.query("SELECT * FROM sticker_logs WHERE id = $1", [
         id,
@@ -568,6 +572,12 @@ async function main() {
         `INSERT INTO interactions (from_user_id, to_user_id, type, content, timestamp, read) VALUES ($1, $2, $3, $4, $5::timestamptz, false) RETURNING *`,
         [uid, b.toUserId, b.type, b.content ?? null, b.timestamp],
       );
+      // Fire-and-forget: never block or fail the interaction on push delivery.
+      sendPushToUser(pool, b.toUserId, {
+        title: "New Interaction! \u{1F31F}",
+        body: `Someone sent you a ${b.type}!`,
+        url: "/social",
+      }).catch((err) => console.error("Push send failed:", err));
       res.json(mapInteractionRow(r.rows[0]));
     } catch (e) {
       logRequestError(e, { path: "/api/interactions", userId: req.userId }, 500);
@@ -646,10 +656,7 @@ async function main() {
         res.status(400).json({ error: "Name required" });
         return;
       }
-      const inviteCode = Math.random()
-        .toString(36)
-        .substring(2, 8)
-        .toUpperCase();
+      const inviteCode = generateGroupInviteCode();
       const ins = await pool.query(
         `INSERT INTO groups (name, admin_id, members, invite_code, created_at)
          VALUES ($1, $2, ARRAY[$3::uuid], $4, NOW()) RETURNING *`,
@@ -666,7 +673,7 @@ async function main() {
     }
   });
 
-  app.post("/api/groups/join", jwtAuth, async (req, res) => {
+  app.post("/api/groups/join", jwtAuth, joinLimiter, async (req, res) => {
     try {
       const uid = (req as express.Request & { userId: string }).userId;
       const { code } = req.body as { code?: string };
@@ -720,6 +727,7 @@ async function main() {
 
   app.get("/api/invites/:id", jwtAuth, async (req, res) => {
     try {
+      const uid = (req as express.Request & { userId: string }).userId;
       const r = await pool.query(
         "SELECT inviter_id, used FROM invites WHERE id = $1",
         [req.params.id],
@@ -729,13 +737,19 @@ async function main() {
         return;
       }
       const row = r.rows[0];
+      const inviterId = String(row.inviter_id);
+      const isInviter = inviterId === uid;
       if (row.used) {
-        res.json({ valid: false, used: true });
+        res.json({
+          valid: false,
+          used: true,
+          ...(isInviter ? { inviterId } : {}),
+        });
         return;
       }
       res.json({
         valid: true,
-        inviterId: String(row.inviter_id),
+        inviterId,
       });
     } catch (e) {
       logRequestError(e, { path: "/api/invites/:id", userId: req.userId }, 500);
@@ -785,14 +799,65 @@ async function main() {
       ]);
       const email = String(u.rows[0]?.email || "");
       const b = req.body as { content: string; type: string };
+      const feedbackErr = validateFeedback(b.content, b.type);
+      if (feedbackErr) {
+        res.status(feedbackErr.status).json({ error: feedbackErr.error });
+        return;
+      }
       await pool.query(
         `INSERT INTO feedback (user_id, user_email, content, type, timestamp, status) VALUES ($1, $2, $3, $4, NOW(), 'pending')`,
-        [uid, email, b.content, b.type],
+        [uid, email, b.content.trim(), b.type],
       );
       res.json({ ok: true });
     } catch (e) {
       console.error(e);
       res.status(500).json({ error: "Failed to submit feedback" });
+    }
+  });
+
+  app.post("/api/push/register", jwtAuth, writeLimiter, async (req, res) => {
+    try {
+      const uid = (req as express.Request & { userId: string }).userId;
+      const b = req.body as { token?: unknown; platform?: unknown };
+      const err = validatePushRegistration(b.token, b.platform);
+      if (err) {
+        res.status(err.status).json({ error: err.error });
+        return;
+      }
+      // A token belongs to a device; if another account signs in on the same
+      // device, reassign the token to the new user.
+      await pool.query(
+        `INSERT INTO push_tokens (user_id, platform, token)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (token) DO UPDATE
+           SET user_id = EXCLUDED.user_id,
+               platform = EXCLUDED.platform,
+               updated_at = NOW()`,
+        [uid, b.platform, b.token],
+      );
+      res.json({ ok: true });
+    } catch (e) {
+      logRequestError(e, { path: "/api/push/register", userId: req.userId }, 500);
+      res.status(500).json({ error: "Failed to register push token" });
+    }
+  });
+
+  app.delete("/api/push/register", jwtAuth, async (req, res) => {
+    try {
+      const uid = (req as express.Request & { userId: string }).userId;
+      const b = req.body as { token?: unknown };
+      if (typeof b.token !== "string" || !b.token.trim()) {
+        res.status(400).json({ error: "token is required" });
+        return;
+      }
+      await pool.query(
+        "DELETE FROM push_tokens WHERE token = $1 AND user_id = $2",
+        [b.token, uid],
+      );
+      res.json({ ok: true });
+    } catch (e) {
+      logRequestError(e, { path: "/api/push/register", userId: req.userId }, 500);
+      res.status(500).json({ error: "Failed to remove push token" });
     }
   });
 
@@ -896,13 +961,7 @@ async function main() {
           res.status(400).json({ error: "Daily challenge must be a global task" });
           return;
         }
-        await pool.query(
-          `UPDATE tasks SET is_daily_challenge = false WHERE is_daily_challenge = true`,
-        );
-        await pool.query(
-          `UPDATE tasks SET is_daily_challenge = true WHERE id = $1`,
-          [id],
-        );
+        await pool.query("SELECT public.set_daily_challenge($1)", [id]);
         const u = await pool.query("SELECT * FROM tasks WHERE id = $1", [id]);
         res.json(mapTaskRow(u.rows[0]));
       } catch (e) {

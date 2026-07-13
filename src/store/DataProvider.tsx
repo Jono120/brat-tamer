@@ -14,6 +14,16 @@ import React, {
 } from "react";
 import { careApi, SessionUser } from "../api/careApi";
 import { supabase } from "../lib/supabaseClient";
+import {
+  isNativePlatform,
+  NATIVE_AUTH_CALLBACK_URL,
+  openAuthUrlInSystemBrowser,
+} from "../lib/native";
+import {
+  nativePushPermissionGranted,
+  registerNativePushIfPermitted,
+  requestAndRegisterNativePush,
+} from "../lib/nativePush";
 import type { Session } from "@supabase/supabase-js";
 import {
   Task,
@@ -26,6 +36,7 @@ import {
 } from "../types";
 import { ADMIN_EMAILS } from "../constants";
 import { errorMessage } from "../lib/errors";
+import { applyTheme, resolveTheme, watchSystemTheme } from "../lib/theme";
 import { subscribeRealtime } from "../lib/realtimeSync";
 import { useToast } from "../components/ui/Toast";
 
@@ -53,6 +64,7 @@ export interface TaskPayload {
   isDailyChallenge: boolean;
   description: string;
   targetCount: number;
+  requiresNote: boolean;
 }
 
 interface DataContextValue {
@@ -96,7 +108,7 @@ interface DataContextValue {
   uploadAvatar: (file: File) => Promise<void>;
   selectPresetAvatar: (url: string) => Promise<void>;
   // tasks
-  toggleSticker: (taskId: string) => Promise<void>;
+  toggleSticker: (taskId: string, note?: string) => Promise<void>;
   createTask: (payload: TaskPayload) => Promise<boolean>;
   updateTask: (id: string, payload: TaskPayload) => Promise<boolean>;
   deleteTask: (id: string) => Promise<boolean>;
@@ -161,13 +173,13 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
-  const applyTheme = useCallback((theme?: string) => {
-    if (theme === "dark") {
-      document.documentElement.classList.add("dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-    }
-  }, []);
+  // Theme: explicit profile choice wins; otherwise follow the device theme
+  // (including live OS theme changes while the app is open).
+  const themePreference = profile?.theme;
+  useEffect(() => {
+    applyTheme(themePreference);
+    return watchSystemTheme(() => themePreference);
+  }, [themePreference]);
 
   // Supabase session -> profile hydration, plus optional ?invite= / ?error= handling.
   useEffect(() => {
@@ -198,7 +210,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         if (!active) return;
         setUser(me.user);
         setProfile(me.profile);
-        applyTheme(me.profile.theme);
         if (me.profile.hasCompletedOnboarding === false) setOnboardingStep(0);
       } catch (e) {
         console.error("Failed to load session profile", e);
@@ -303,7 +314,6 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
         setAllLogs(logsAll);
         setInteractions(inbox);
         setFriends(friendList);
-        applyTheme(me.profile.theme);
         const adminUser =
           me.profile.role === "admin" ||
           (!!me.user.email &&
@@ -367,14 +377,28 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
       window.removeEventListener("hashchange", onHash);
       unsubRealtime();
     };
-  }, [user, isAuthReady, today, applyTheme, profile?.groupId]);
+  }, [user, isAuthReady, today, profile?.groupId]);
 
   // Notification permission state
   useEffect(() => {
-    if ("Notification" in window) {
+    if (isNativePlatform()) {
+      nativePushPermissionGranted()
+        .then(setNotificationsEnabled)
+        .catch(() => setNotificationsEnabled(false));
+    } else if ("Notification" in window) {
       setNotificationsEnabled(Notification.permission === "granted");
     }
   }, []);
+
+  // Native: refresh the FCM/APNs device token after sign-in when permission
+  // was already granted (register() re-fires the `registration` listener,
+  // which posts the token to the API under the new session).
+  useEffect(() => {
+    if (!user?.uid || !isNativePlatform()) return;
+    registerNativePushIfPermitted().catch((e) =>
+      console.error("Push re-registration failed", e),
+    );
+  }, [user?.uid]);
 
   useEffect(() => {
     if (!user?.uid) {
@@ -424,6 +448,20 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
   const loginWithProvider = useCallback(
     async (provider: "google" | "apple") => {
+      if (isNativePlatform()) {
+        // Native: OAuth must run in the system browser (Google blocks WebViews) and
+        // return via the custom-scheme deep link handled in src/lib/native.ts.
+        const { data, error } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: {
+            redirectTo: NATIVE_AUTH_CALLBACK_URL,
+            skipBrowserRedirect: true,
+          },
+        });
+        if (error) throw new Error(error.message);
+        if (data?.url) await openAuthUrlInSystemBrowser(data.url);
+        return;
+      }
       const { error } = await supabase.auth.signInWithOAuth({
         provider,
         options: { redirectTo: `${window.location.origin}/` },
@@ -454,20 +492,21 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     setGroup(null);
     setOnboardingStep(null);
     setHasLoadedData(false);
-    document.documentElement.classList.remove("dark");
+    applyTheme(undefined);
   }, []);
 
   const toggleTheme = useCallback(async () => {
     if (!user || !profile) return;
-    const newTheme = profile.theme === "dark" ? "light" : "dark";
+    // Toggle from the *effective* theme so the first tap always visibly
+    // flips it, even when the user was following a dark device theme.
+    const newTheme = resolveTheme(profile.theme) === "dark" ? "light" : "dark";
     try {
       await careApi.patchProfile({ theme: newTheme });
-      applyTheme(newTheme);
       setProfile({ ...profile, theme: newTheme });
     } catch (e) {
       toast.error(errorMessage(e));
     }
-  }, [user, profile, applyTheme, toast]);
+  }, [user, profile, toast]);
 
   const completeOnboarding = useCallback(async () => {
     if (!user) return;
@@ -480,6 +519,11 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
   }, [user]);
 
   const requestNotificationPermission = useCallback(async () => {
+    if (isNativePlatform()) {
+      const granted = await requestAndRegisterNativePush();
+      setNotificationsEnabled(granted);
+      return;
+    }
     if (!("Notification" in window)) return;
     const permission = await Notification.requestPermission();
     setNotificationsEnabled(permission === "granted");
@@ -529,7 +573,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
 
   // --- Tasks ---
   const toggleSticker = useCallback(
-    async (taskId: string) => {
+    async (taskId: string, note?: string) => {
       if (!user) return;
       const task = [...globalTasks, ...tasks].find((t) => t.id === taskId);
       if (!task) return;
@@ -541,6 +585,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
               await careApi.updateLog(existingLog.id, {
                 count: (existingLog.count || 1) + 1,
                 earnedAt: new Date().toISOString(),
+                note,
               });
             } else {
               await careApi.deleteLog(existingLog.id);
@@ -554,6 +599,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
             date: today,
             earnedAt: new Date().toISOString(),
             count: 1,
+            note,
           });
         }
       } catch (e) {
@@ -571,6 +617,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
           ...payload,
           isGlobal: isAdmin ? payload.isGlobal : false,
           isDailyChallenge: isAdmin ? payload.isDailyChallenge : false,
+          requiresNote: isAdmin ? payload.requiresNote : false,
         });
         toast.success("Goal created!");
         return true;
@@ -590,6 +637,7 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
           ...payload,
           isGlobal: isAdmin ? payload.isGlobal : false,
           isDailyChallenge: isAdmin ? payload.isDailyChallenge : false,
+          requiresNote: isAdmin ? payload.requiresNote : false,
         });
         toast.success("Goal updated!");
         return true;

@@ -6,6 +6,9 @@ coverage/
 *.log
 .env*
 !.env.example
+# Committed Capacitor build-matrix files (placeholders / public client config only)
+!.env.capacitor-staging
+!.env.capacitor-production
 
 # Capacitor / native build outputs (keep project sources; ignore local build artifacts)
 android/.gradle

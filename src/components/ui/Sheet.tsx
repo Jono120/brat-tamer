@@ -35,21 +35,36 @@ export const Sheet = ({
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
 
+  // Callers pass inline `onClose` handlers whose identity changes on every
+  // render (including the 4s data-polling refresh). Reading it through a ref
+  // keeps the focus effect below scoped to open/close transitions only;
+  // otherwise each refresh would tear it down and steal focus from whatever
+  // field the user is typing in.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  });
+
   useEffect(() => {
     if (!open) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     };
     document.addEventListener("keydown", onKey);
-    // Move focus into the dialog.
-    const t = window.setTimeout(() => panelRef.current?.focus(), 0);
+    // Move focus into the dialog, unless something inside it (e.g. an
+    // autoFocus field) already claimed focus.
+    const t = window.setTimeout(() => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      panel.focus();
+    }, 0);
     return () => {
       document.removeEventListener("keydown", onKey);
       window.clearTimeout(t);
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   const isBottom = variant === "bottom";
 
@@ -78,10 +93,10 @@ export const Sheet = ({
             transition={{ type: "spring", damping: 25, stiffness: 220 }}
             className={
               isBottom
-                ? `w-full bg-card-bg rounded-t-[40px] p-8 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] outline-none ${
+                ? `w-full max-w-xl mx-auto bg-card-bg rounded-t-[40px] lg:rounded-b-[40px] lg:mb-6 p-8 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] outline-none ${
                     maxHeight ? "max-h-[88vh] overflow-y-auto" : ""
                   }`
-                : `w-full max-w-sm bg-card-bg rounded-[40px] p-8 shadow-2xl outline-none ${
+                : `w-full max-w-sm md:max-w-md bg-card-bg rounded-[40px] p-8 shadow-2xl outline-none ${
                     maxHeight ? "max-h-[80vh] overflow-y-auto" : ""
                   }`
             }

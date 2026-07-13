@@ -3,7 +3,7 @@ import {
   type SupabaseContext,
   type WithSupabaseConfig,
 } from "@supabase/server";
-import { resolveEnv } from "@supabase/server/core";
+import { resolveEnv, verifyAuth } from "@supabase/server/core";
 import type { NextFunction, Request, Response } from "express";
 
 /** Converts an Express request into a Web API Request for `@supabase/server`. */
@@ -64,6 +64,10 @@ function attachSupabaseContext(req: Request, ctx: SupabaseContext): void {
 /**
  * Verifies a Supabase user JWT (`auth: "user"`) for existing Express routes.
  * Preserves the legacy `{ error: string }` response shape used by the API client.
+ *
+ * Uses the `verifyAuth` primitive rather than `createSupabaseContext`: routes access
+ * data through the pg pool, so the RLS/admin Supabase clients (and therefore
+ * SUPABASE_SECRET_KEY) are not needed just to authenticate a request.
  */
 export async function jwtAuth(
   req: Request,
@@ -83,17 +87,20 @@ export async function jwtAuth(
     return;
   }
 
-  const { data: ctx, error } = await createSupabaseContext(
-    toWebRequest(req),
-    { auth: "user", cors: false },
-  );
+  const { data: auth, error } = await verifyAuth(toWebRequest(req), {
+    auth: "user",
+  });
   if (error) {
-    const message =
-      error.status === 401 ? "Invalid token" : error.message;
+    const message = error.status === 401 ? "Invalid token" : error.message;
     res.status(error.status).json({ error: message });
     return;
   }
 
-  attachSupabaseContext(req, ctx);
+  if (!auth.userClaims?.id) {
+    res.status(401).json({ error: "Invalid token" });
+    return;
+  }
+  req.userId = auth.userClaims.id;
+  req.userEmail = auth.userClaims.email ?? "";
   next();
 }

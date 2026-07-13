@@ -14,7 +14,10 @@ export const Skeleton = ({ className = "" }: SkeletonProps) => (
 
 /** Grid of sticker-shaped skeletons for the home screen loading state. */
 export const StickerGridSkeleton = ({ count = 4 }: { count?: number }) => (
-  <div className="grid grid-cols-2 gap-4" aria-hidden="true">
+  <div
+    className="grid grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-4 gap-4"
+    aria-hidden="true"
+  >
     {Array.from({ length: count }).map((_, i) => (
       <Skeleton key={i} className="h-32 rounded-[32px]" />
     ))}

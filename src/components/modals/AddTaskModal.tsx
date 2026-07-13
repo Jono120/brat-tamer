@@ -41,6 +41,7 @@ export const AddTaskModal = () => {
             isDailyChallenge: formData.get("isDailyChallenge") === "on",
             description: (formData.get("description") as string) || "",
             targetCount: parseInt(formData.get("targetCount") as string) || 1,
+            requiresNote: formData.get("requiresNote") === "on",
           };
           if (editingTask) {
             // Editing requires explicit confirmation (SaveConfirmModal).
@@ -143,6 +144,25 @@ export const AddTaskModal = () => {
                 Daily Challenge
               </span>
             </label>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                name="requiresNote"
+                defaultChecked={editingTask?.requiresNote}
+                className="peer sr-only"
+              />
+              <div className="w-10 h-5 bg-bg-primary rounded-full relative transition-all peer-checked:bg-brand-secondary">
+                <div className="absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-all peer-checked:translate-x-5" />
+              </div>
+              <span className="text-xs font-bold uppercase tracking-widest text-brand-ink">
+                Ask for a Note
+              </span>
+            </label>
+            <div className="text-xs text-muted font-medium">
+              With "Ask for a Note" on, users are asked to write a short note
+              (e.g. what they're grateful for) before earning the sticker. The
+              goal description is used as the prompt.
+            </div>
           </div>
         )}
 

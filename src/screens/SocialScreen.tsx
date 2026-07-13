@@ -24,7 +24,7 @@ export const SocialScreen = () => {
   }, [markInboxRead]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-2xl mx-auto">
       <h2 className="text-lg font-bold text-brand-ink">Social Feed</h2>
 
       {!hasLoadedData && interactions.length === 0 ? (

@@ -90,7 +90,7 @@ const Shell = () => {
       {/* Safe-area top spacer (replaces the fake status bar) */}
       <div className="safe-top" aria-hidden="true" />
 
-      <header className="px-6 pt-4 pb-4 text-center">
+      <header className="px-6 md:px-8 pt-4 pb-4 text-center">
         <h1 className="text-2xl font-bold text-brand-primary tracking-tight">
           Care Chart
         </h1>
@@ -109,7 +109,7 @@ const Shell = () => {
         </div>
       </header>
 
-      <div className="px-6 mb-6">
+      <div className="px-6 md:px-8 mb-6">
         <div className="flex justify-between items-end mb-2">
           <div>
             <span className="text-xs font-bold uppercase tracking-wider text-muted-strong">
@@ -132,7 +132,7 @@ const Shell = () => {
         <ProgressBar value={progress} label="Daily goal progress" />
       </div>
 
-      <main className="flex-1 overflow-y-auto px-6 pb-24">
+      <main className="@container flex-1 overflow-y-auto px-6 md:px-8 pb-24">
         <Routes>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/stats" element={<StatsScreen />} />

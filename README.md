@@ -36,7 +36,7 @@ CareStickers is a social self-care tracking application that allows users to set
 | HTTP API & routes               | `server/src/index.ts`                                     |
 | `@supabase/server` (Express)    | `server/src/supabaseServer.ts`                            |
 | Edge Functions                  | `supabase/functions/`                                     |
-| Database schema (canonical)     | `supabase/migrations/` (`0001` app tables, `0002` auth link, `0003` Storage avatars, `0004` daily challenge, `0005` RLS/Realtime) |
+| Database schema (canonical)     | `supabase/migrations/` (`0001` app tables, `0002` auth link, `0003` Storage avatars, `0005` RLS/Realtime, `0006` security hardening, `0007` push tokens) |
 | DB pool, SSL & optional auto-migrate | `server/src/db.ts`                                   |
 | Supabase CLI config & seed      | `supabase/config.toml`, `supabase/seed.sql`               |
 | Capacitor config                | `capacitor.config.ts`                                     |
@@ -140,9 +140,13 @@ Supabase setup (linking, providers, local stack, CI, ops) is in [docs/SUPABASE.m
 | `npm test`                 | Run tests in watch mode ([Vitest](https://vitest.dev/))                     |
 | `npm run test:run`         | Run tests once (CI)                                                         |
 | `npm run build:cap`        | Web build for native (`base: './'`) and `cap sync` into `android/` / `ios/` |
+| `npm run build:cap:staging` | Native build using `.env.capacitor-staging` (Vite mode `capacitor-staging`) |
+| `npm run build:cap:prod`   | Native build using `.env.capacitor-production` (Vite mode `capacitor-production`) |
 | `npm run cap:sync`         | Run `cap sync` only (after `npm run build` or `build:cap`)                  |
 | `npm run cap:open:android` | Open Android project in Android Studio                                      |
 | `npm run cap:open:ios`     | Open iOS project in Xcode (macOS)                                           |
+| `npm run assets:placeholders` | Regenerate placeholder icon/splash sources in `assets/`                  |
+| `npm run assets:generate`  | Generate native icons & splash screens from `assets/` ([@capacitor/assets](https://github.com/ionic-team/capacitor-assets)) |
 | `npm run db:start` / `db:stop` | Start / stop the full local Supabase stack (Docker)                     |
 | `npm run db:push`          | Apply migrations to the linked Supabase project                             |
 | `npm run db:reset`         | Rebuild the local DB from migrations + `seed.sql`                           |
@@ -175,7 +179,8 @@ Run `npm run test:run` before releases. pg-mem is not identical to production Po
 
 ### Docker
 
-- **Image**: `Dockerfile` builds the Vite client and runs the Node API with `tsx`.
+- **Image**: `Dockerfile` builds the Vite client (with `VITE_*` build-args) and runs the Node API via native TypeScript stripping (Node 24).
+- **GHCR**: On merge to `main`, the **Container** workflow pushes `ghcr.io/<owner>/<repo>:<sha>`. Set repository **Variables** `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` before the first build. Pull and run on your host or PaaS; runtime env still needs `DATABASE_URL`, `SUPABASE_URL`, keys, etc.
 - **Compose**: `docker-compose.yml` runs PostgreSQL plus the app. On **first** creation of the Postgres volume, `supabase/migrations/0001_initial_schema.sql` is applied automatically via `/docker-entrypoint-initdb.d` (no manual `psql` step). The auth-link migration `0002` is not applied here because plain Postgres has no `auth` schema — for full Supabase Auth parity locally, use `npm run db:start`. The app sets `APPLY_SCHEMA=false` so the Node process does not duplicate that work.
 
 **Full stack (build + start DB + API):**
@@ -213,6 +218,19 @@ npx cap add ios   # macOS recommended; CocoaPods required for full iOS builds
 
 ### Build for native (after code changes)
 
+Per-environment builds read committed env files via Vite modes (no shell variables needed):
+
+| Script                      | Vite mode              | Env file                    |
+| --------------------------- | ---------------------- | --------------------------- |
+| `npm run build:cap:staging` | `capacitor-staging`    | `.env.capacitor-staging`    |
+| `npm run build:cap:prod`    | `capacitor-production` | `.env.capacitor-production` |
+
+Edit those files and set `VITE_API_BASE` (your deployed HTTPS API, no trailing slash) plus
+`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` for each environment. They contain only public
+client config — never put secrets in them. Mode files override `.env` / `.env.local`.
+
+Alternatively, the generic build uses whatever is in your shell / `.env`:
+
 ```bash
 # Set API URL for the WebView (your deployed HTTPS API)
 set VITE_API_BASE=https://api.yourdomain.com   # Windows PowerShell: $env:VITE_API_BASE='...'
@@ -229,9 +247,13 @@ npm run cap:open:ios
 - **Android**: Generate a signing key, configure **Play App Signing**, build **AAB** or **APK** in Android Studio, upload to Play Console.
 - **iOS**: On a Mac, install **Xcode** and **CocoaPods** (`cd ios/App && pod install`), set **Signing & Capabilities** in Xcode, archive, upload to App Store Connect.
 
-### OAuth in embedded WebViews
+### OAuth on native (system browser + deep link)
 
-Google and Apple may restrict sign-in inside generic WebViews. If login fails in the app but works in Safari/Chrome, you may need **OAuth clients** of type **iOS** / **Android** in Google Cloud Console, **Sign in with Apple** enabled for the app bundle ID, or the [Capacitor Browser](https://capacitorjs.com/docs/apis/browser) plugin to complete OAuth in the system browser. Plan QA on real devices.
+On iOS/Android, Google/Apple sign-in opens the **system browser** ([Capacitor Browser](https://capacitorjs.com/docs/apis/browser)) because Google blocks generic WebViews, then returns via the `com.carestickers.app://auth-callback` deep link where the app exchanges the PKCE code for a session (`src/lib/native.ts`). The scheme is registered in `AndroidManifest.xml`, iOS `Info.plist`, and `supabase/config.toml`; add it to the **hosted** Supabase dashboard redirect allow-list too. You may still need **OAuth clients** of type **iOS** / **Android** in Google Cloud Console and **Sign in with Apple** enabled for the bundle ID — see [docs/MOBILE_RELEASE.md](docs/MOBILE_RELEASE.md). Plan QA on real devices.
+
+### Push notifications (native)
+
+Native push is scaffolded end-to-end: the Settings toggle requests permission and registers the FCM/APNs device token (`src/lib/nativePush.ts` → `POST /api/push/register` → `push_tokens` table), and the API sends via **FCM HTTP v1** (`server/src/push.ts`) when a social interaction arrives; tapping a notification opens the Social tab. Sending is a logged no-op until you supply credentials: `google-services.json` (Android), the APNs key + Push capability (iOS), and `FCM_SERVICE_ACCOUNT_JSON` on the server. Setup steps: [docs/MOBILE_RELEASE.md](docs/MOBILE_RELEASE.md#4-push-notifications--credentials-and-native-config).
 
 ### App Store & Google Play checklist (typical)
 
@@ -248,7 +270,7 @@ Google and Apple may restrict sign-in inside generic WebViews. If login fails in
 
 - Credentials and identities are managed by **Supabase Auth**; the Express API verifies Supabase access tokens (JWKS) and enforces ownership/admin checks on the server.
 - The client holds only the Supabase session (access/refresh tokens) and the public anon key. The `service_role` key must stay server-side and out of the repo.
-- RLS is left disabled on the app tables in this phase because the privileged server role enforces access in app code. If you expose tables directly to the Data API later, enable RLS with ownership policies first — see [docs/SUPABASE.md](docs/SUPABASE.md#8-security-notes).
+- RLS is enabled on app tables (`0005_rls_realtime.sql`) for direct client and Realtime access. The Express API uses a privileged DB role and enforces access in application code. See [docs/SUPABASE.md](docs/SUPABASE.md#8-security-notes).
 - Keep database credentials, the Supabase access token / DB password, and provider secrets out of version control (use `.env`, which is gitignored).
 
 ## License

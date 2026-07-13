@@ -12,6 +12,13 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="CareStickers" />
     <meta name="theme-color" content="#FF865E" />
+    <script>
+      // Apply the device theme before first paint to avoid a light-mode
+      // flash; DataProvider re-applies the user's saved preference later.
+      if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+        document.documentElement.classList.add("dark");
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

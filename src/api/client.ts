@@ -65,5 +65,9 @@ export const api = {
     }),
   patch: (path: string, json: unknown) =>
     apiFetch(path, { method: "PATCH", body: JSON.stringify(json) }),
-  delete: (path: string) => apiFetch(path, { method: "DELETE" }),
+  delete: (path: string, json?: unknown) =>
+    apiFetch(path, {
+      method: "DELETE",
+      body: json !== undefined ? JSON.stringify(json) : undefined,
+    }),
 };

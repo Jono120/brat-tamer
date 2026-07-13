@@ -3,13 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Star, Check, Settings, Share2, Sparkles } from "lucide-react";
 import { TaskIcon } from "../components/TaskIcon";
+import { TaskNoteModal } from "../components/modals/TaskNoteModal";
 import { Button, EmptyState, StickerGridSkeleton } from "../components/ui";
 import { useTasks, useSocial } from "../store/hooks";
 import { useUiState } from "../store/UiStateProvider";
+import type { Task } from "../types";
 
 /** Home: daily challenge, goal grid and sharing. */
 export const HomeScreen = () => {
@@ -23,6 +25,7 @@ export const HomeScreen = () => {
   } = useTasks();
   const { shareProgress } = useSocial();
   const { sortBy, setSortBy, openAddTask } = useUiState();
+  const [noteTask, setNoteTask] = useState<Task | null>(null);
 
   const sortedTasks = useMemo(() => {
     const allTasks = [...globalTasks, ...tasks];
@@ -36,10 +39,23 @@ export const HomeScreen = () => {
   }, [globalTasks, tasks, sortBy]);
 
   const dailyChallenge = globalTasks.find((t) => t.isDailyChallenge);
+  const dailyChallengeNote = dailyChallenge
+    ? logs.find((l) => l.taskId === dailyChallenge.id)?.note
+    : undefined;
   const showSkeleton = !hasLoadedData && sortedTasks.length === 0;
 
+  const handleStickerPress = (task: Task, isEarned: boolean) => {
+    // Note-enabled tasks (admin-controlled) ask for a short note before the
+    // sticker is earned; every other task toggles immediately.
+    if (!isEarned && task.requiresNote) {
+      setNoteTask(task);
+      return;
+    }
+    void toggleSticker(task.id);
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 w-full max-w-3xl mx-auto">
       {dailyChallenge && (
         <div className="bg-gradient-to-br from-brand-primary to-brand-secondary p-6 rounded-[32px] text-white shadow-xl shadow-brand-primary/20 relative overflow-hidden">
           <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -60,6 +76,11 @@ export const HomeScreen = () => {
                 </div>
               </div>
             </div>
+            {dailyChallengeNote && (
+              <div className="mt-4 bg-white/15 backdrop-blur-sm rounded-2xl px-4 py-3 text-sm font-semibold text-white/95">
+                Today's note: {dailyChallengeNote}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -100,7 +121,10 @@ export const HomeScreen = () => {
           }
         />
       ) : (
-        <div id="sticker-grid" className="grid grid-cols-2 gap-4">
+        <div
+          id="sticker-grid"
+          className="grid grid-cols-2 @xl:grid-cols-3 @3xl:grid-cols-4 gap-4"
+        >
           <AnimatePresence>
             {sortedTasks.map((task) => {
               const log = logs.find((l) => l.taskId === task.id);
@@ -125,13 +149,13 @@ export const HomeScreen = () => {
                     type="button"
                     aria-label={`${task.title}${isEarned ? ", completed" : ""}. Tap to ${isEarned ? "remove sticker" : "earn sticker"}.`}
                     aria-pressed={isEarned}
-                    onClick={() => toggleSticker(task.id)}
+                    onClick={() => handleStickerPress(task, !!isEarned)}
                     onContextMenu={(e) => {
                       e.preventDefault();
                       if (isGlobal && !isAdmin) return;
                       openAddTask(task);
                     }}
-                    className={`w-full sticker-slot relative flex flex-col items-center justify-center h-32 rounded-[32px] border-2 transition-all overflow-hidden ${
+                    className={`w-full h-full sticker-slot relative flex flex-col items-center justify-center min-h-32 pt-10 pb-4 px-2 rounded-[32px] border-2 transition-all overflow-hidden ${
                       isEarned
                         ? "bg-card-bg border-brand-secondary shadow-lg shadow-brand-secondary/20"
                         : "bg-bg-primary border-dashed border-brand-ink/15"
@@ -211,18 +235,18 @@ export const HomeScreen = () => {
                     </div>
 
                     <span
-                      className={`text-xs font-bold uppercase tracking-tight ${isEarned || (hasProgress && currentCount > 0) ? "text-brand-ink" : "text-muted"}`}
+                      className={`text-xs font-bold uppercase tracking-tight text-center px-2 ${isEarned || (hasProgress && currentCount > 0) ? "text-brand-ink" : "text-muted"}`}
                     >
                       {task.title}
                     </span>
 
                     {hasProgress && !isEarned && currentCount > 0 && (
-                      <div className="absolute top-2 left-2 bg-brand-primary/10 text-brand-primary text-[11px] font-black px-1.5 py-0.5 rounded-full">
+                      <div className="absolute bottom-2 right-2 bg-brand-primary/10 text-brand-primary text-[11px] font-black px-1.5 py-0.5 rounded-full">
                         {currentCount}/{task.targetCount}
                       </div>
                     )}
                     {task.description && (
-                      <span className="text-[11px] text-muted px-4 text-center line-clamp-1 mt-0.5">
+                      <span className="text-[11px] text-muted px-3 text-center line-clamp-2 mt-0.5">
                         {task.description}
                       </span>
                     )}
@@ -233,7 +257,7 @@ export const HomeScreen = () => {
                       <motion.div
                         initial={{ scale: 0, rotate: -45 }}
                         animate={{ scale: 1, rotate: 0 }}
-                        className="absolute -top-1 -right-1 bg-brand-success text-brand-ink p-1 rounded-full shadow-md"
+                        className="absolute bottom-2 right-2 bg-brand-success text-brand-ink p-1 rounded-full shadow-md"
                       >
                         <Check size={12} strokeWidth={4} />
                       </motion.div>
@@ -244,9 +268,11 @@ export const HomeScreen = () => {
                       type="button"
                       aria-label={`Edit ${task.title}`}
                       onClick={() => openAddTask(task)}
-                      className="absolute top-2 left-2 min-w-[44px] min-h-[44px] flex items-center justify-center bg-brand-ink/5 rounded-full text-muted hover:text-brand-primary transition-colors"
+                      className="absolute top-0 left-0 min-w-[44px] min-h-[44px] flex items-center justify-center text-muted hover:text-brand-primary transition-colors"
                     >
-                      <Settings size={14} strokeWidth={2} />
+                      <span className="w-7 h-7 flex items-center justify-center bg-brand-ink/5 rounded-full">
+                        <Settings size={14} strokeWidth={2} />
+                      </span>
                     </button>
                   )}
                 </motion.div>
@@ -264,6 +290,17 @@ export const HomeScreen = () => {
         <Share2 size={20} strokeWidth={2} />
         Share Progress
       </button>
+
+      <TaskNoteModal
+        task={noteTask}
+        onClose={() => setNoteTask(null)}
+        onSave={(note) => {
+          if (noteTask) {
+            void toggleSticker(noteTask.id, note || undefined);
+          }
+          setNoteTask(null);
+        }}
+      />
     </div>
   );
 };

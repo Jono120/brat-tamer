@@ -19,6 +19,9 @@ CREATE TABLE users (
   role VARCHAR(20) NOT NULL DEFAULT 'user' CHECK (role IN ('admin', 'user', 'group-admin')),
   theme VARCHAR(10) CHECK (theme IN ('light', 'dark')),
   has_completed_onboarding BOOLEAN NOT NULL DEFAULT FALSE,
+  -- How the user authenticates: 'email' or an OAuth provider ('google', 'apple', ...).
+  -- Credentials themselves live in Supabase Auth (auth.users), never here.
+  auth_provider TEXT NOT NULL DEFAULT 'email',
   google_sub VARCHAR(255),
   apple_sub VARCHAR(255),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -57,7 +60,8 @@ CREATE TABLE tasks (
   is_global BOOLEAN NOT NULL DEFAULT FALSE,
   is_daily_challenge BOOLEAN NOT NULL DEFAULT FALSE,
   description VARCHAR(500),
-  target_count INT CHECK (target_count IS NULL OR target_count >= 1)
+  target_count INT CHECK (target_count IS NULL OR target_count >= 1),
+  requires_note BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 CREATE INDEX idx_tasks_user ON tasks (user_id);
@@ -69,7 +73,8 @@ CREATE TABLE sticker_logs (
   task_id UUID NOT NULL REFERENCES tasks (id) ON DELETE CASCADE,
   date DATE NOT NULL,
   earned_at TIMESTAMPTZ NOT NULL,
-  count INT DEFAULT 1 CHECK (count IS NULL OR count >= 1)
+  count INT DEFAULT 1 CHECK (count IS NULL OR count >= 1),
+  note VARCHAR(500)
 );
 
 CREATE INDEX idx_logs_user_date ON sticker_logs (user_id, date);
