@@ -189,12 +189,48 @@ export type Database = {
           },
         ]
       }
+      push_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sticker_logs: {
         Row: {
           count: number | null
           date: string
           earned_at: string
           id: string
+          note: string | null
           task_id: string
           user_id: string
         }
@@ -203,6 +239,7 @@ export type Database = {
           date: string
           earned_at: string
           id?: string
+          note?: string | null
           task_id: string
           user_id: string
         }
@@ -211,6 +248,7 @@ export type Database = {
           date?: string
           earned_at?: string
           id?: string
+          note?: string | null
           task_id?: string
           user_id?: string
         }
@@ -241,6 +279,7 @@ export type Database = {
           id: string
           is_daily_challenge: boolean
           is_global: boolean
+          requires_note: boolean
           target_count: number | null
           title: string
           user_id: string
@@ -254,6 +293,7 @@ export type Database = {
           id?: string
           is_daily_challenge?: boolean
           is_global?: boolean
+          requires_note?: boolean
           target_count?: number | null
           title: string
           user_id: string
@@ -267,6 +307,7 @@ export type Database = {
           id?: string
           is_daily_challenge?: boolean
           is_global?: boolean
+          requires_note?: boolean
           target_count?: number | null
           title?: string
           user_id?: string
@@ -313,6 +354,7 @@ export type Database = {
       }
       users: {
         Row: {
+          auth_provider: string
           created_at: string
           display_name: string
           email: string
@@ -324,6 +366,7 @@ export type Database = {
           theme: string | null
         }
         Insert: {
+          auth_provider?: string
           created_at?: string
           display_name: string
           email: string
@@ -335,6 +378,7 @@ export type Database = {
           theme?: string | null
         }
         Update: {
+          auth_provider?: string
           created_at?: string
           display_name?: string
           email?: string
@@ -360,16 +404,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      rotate_daily_challenge: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
-      set_daily_challenge: {
-        Args: {
-          p_task_id: string
-        }
-        Returns: undefined
-      }
+      rotate_daily_challenge: { Args: never; Returns: Json }
+      set_daily_challenge: { Args: { p_task_id: string }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
