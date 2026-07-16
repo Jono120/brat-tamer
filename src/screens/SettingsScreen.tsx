@@ -41,6 +41,7 @@ export const SettingsScreen = () => {
     setShowHelpModal,
     setShowFeedback,
     setShowCreateGroup,
+    setShowPrivacyModal,
   } = useUiState();
 
   const isDark = resolveTheme(profile?.theme) === "dark";
@@ -181,7 +182,7 @@ export const SettingsScreen = () => {
         <Card className="!rounded-2xl !p-4">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <div className="bg-brand-accent/15 p-2 rounded-xl text-brand-ink">
+              <div className="bg-brand-accent/15 p-2 rounded-xl text-brand-accent">
                 <Zap size={20} strokeWidth={2} />
               </div>
               <span className="font-bold text-sm text-brand-ink">
@@ -204,7 +205,7 @@ export const SettingsScreen = () => {
         <button
           type="button"
           onClick={() => setShowHelpModal(true)}
-          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-brand-ink/5 shadow-sm text-brand-ink font-bold"
+          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-border-subtle shadow-sm text-brand-ink font-bold"
         >
           <div className="flex items-center gap-3">
             <HelpCircle size={20} strokeWidth={2} />
@@ -226,7 +227,7 @@ export const SettingsScreen = () => {
               href="https://ko-fi.com/jono420"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-2 py-3 px-4 min-h-[48px] rounded-xl bg-bg-primary border border-brand-ink/5 text-sm font-bold text-brand-ink hover:border-brand-primary/30 transition-colors"
+              className="flex items-center justify-between gap-2 py-3 px-4 min-h-[48px] rounded-xl bg-bg-primary border border-border-subtle text-sm font-bold text-brand-ink hover:border-brand-primary/30 transition-colors"
             >
               <span>Ko-fi</span>
               <ExternalLink size={16} strokeWidth={2} className="text-brand-primary shrink-0" />
@@ -235,7 +236,7 @@ export const SettingsScreen = () => {
               href="https://buymeacoffee.com/jono420"
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-2 py-3 px-4 min-h-[48px] rounded-xl bg-bg-primary border border-brand-ink/5 text-sm font-bold text-brand-ink hover:border-brand-primary/30 transition-colors"
+              className="flex items-center justify-between gap-2 py-3 px-4 min-h-[48px] rounded-xl bg-bg-primary border border-border-subtle text-sm font-bold text-brand-ink hover:border-brand-primary/30 transition-colors"
             >
               <span>Buy Me a Coffee</span>
               <ExternalLink size={16} strokeWidth={2} className="text-brand-primary shrink-0" />
@@ -246,7 +247,7 @@ export const SettingsScreen = () => {
         <button
           type="button"
           onClick={() => setOnboardingStep(0)}
-          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-brand-ink/5 shadow-sm text-brand-ink font-bold"
+          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-border-subtle shadow-sm text-brand-ink font-bold"
         >
           <div className="flex items-center gap-3">
             <Info size={20} strokeWidth={2} />
@@ -258,7 +259,7 @@ export const SettingsScreen = () => {
         <button
           type="button"
           onClick={() => setShowFeedback(true)}
-          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-brand-ink/5 shadow-sm text-brand-accent font-bold"
+          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-border-subtle shadow-sm text-brand-accent font-bold"
         >
           <span>Request Feature / Report Issue</span>
           <MessageCircle size={20} strokeWidth={2} />
@@ -267,20 +268,19 @@ export const SettingsScreen = () => {
         <button
           type="button"
           onClick={logout}
-          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-brand-ink/5 shadow-sm text-brand-primary font-bold"
+          className="w-full flex items-center justify-between p-4 min-h-[56px] bg-card-bg rounded-2xl border border-border-subtle shadow-sm text-brand-primary font-bold"
         >
           <span>Logout</span>
           <LogOut size={20} strokeWidth={2} />
         </button>
 
-        <a
-          href="/privacy.html"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-center text-xs text-muted font-bold uppercase tracking-wider py-2"
+        <button
+          type="button"
+          onClick={() => setShowPrivacyModal(true)}
+          className="block w-full text-center text-xs text-muted font-bold uppercase tracking-wider py-2 min-h-[44px]"
         >
           Privacy Policy
-        </a>
+        </button>
       </div>
     </div>
   );

@@ -45,7 +45,7 @@ export const HelpModal = () => {
             href="https://ko-fi.com/jono420"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between gap-2 py-2.5 px-3 rounded-xl bg-card-bg border border-brand-ink/10 text-sm font-bold text-brand-ink"
+            className="flex items-center justify-between gap-2 py-2.5 px-3 rounded-xl bg-card-bg border border-border-subtle text-sm font-bold text-brand-ink"
           >
             Ko-fi
             <ExternalLink
@@ -58,7 +58,7 @@ export const HelpModal = () => {
             href="https://buymeacoffee.com/jono420"
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center justify-between gap-2 py-2.5 px-3 rounded-xl bg-card-bg border border-brand-ink/10 text-sm font-bold text-brand-ink"
+            className="flex items-center justify-between gap-2 py-2.5 px-3 rounded-xl bg-card-bg border border-border-subtle text-sm font-bold text-brand-ink"
           >
             Buy Me a Coffee
             <ExternalLink
@@ -70,7 +70,7 @@ export const HelpModal = () => {
         </div>
       </div>
 
-      <div className="mt-8 p-6 bg-bg-primary rounded-3xl border border-brand-ink/5">
+      <div className="mt-8 p-6 bg-bg-primary rounded-3xl border border-border-subtle">
         <div className="text-sm font-bold text-brand-ink mb-2">
           Still need help?
         </div>

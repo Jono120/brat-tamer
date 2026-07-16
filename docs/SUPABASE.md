@@ -84,7 +84,7 @@ scheme to the hosted dashboard redirect allow-list (see [MOBILE_RELEASE.md](MOBI
 
 ## 3. Local development
 
-Two valid paths (see also the root `README.md` Docker section):
+Two valid paths (see also [DEPLOYMENT.md](DEPLOYMENT.md#docker-compose-local--self-hosted)):
 
 - **Option A — Docker Postgres only (least churn).** Keep `docker-compose.yml`'s `db` service for
   offline dev. It applies `supabase/migrations/0001_initial_schema.sql` on first volume init. Note

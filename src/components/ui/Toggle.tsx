@@ -21,7 +21,7 @@ export const Toggle = ({ checked, onChange, label }: ToggleProps) => (
     aria-label={label}
     onClick={onChange}
     className={`relative inline-flex items-center w-14 h-8 min-h-[44px] min-w-[44px] justify-start px-1 rounded-full transition-all ${
-      checked ? "bg-brand-primary" : "bg-brand-ink/15"
+      checked ? "bg-brand-primary" : "bg-brand-ink/20"
     }`}
   >
     <motion.span

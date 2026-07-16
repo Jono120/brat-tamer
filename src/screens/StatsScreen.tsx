@@ -82,7 +82,7 @@ export const StatsScreen = () => {
 
       {weeklyStats.bestTask && (
         <Card className="flex items-center gap-4 shadow-lg shadow-brand-ink/5">
-          <div className="bg-brand-accent p-3 rounded-2xl text-brand-ink">
+          <div className="bg-brand-accent p-3 rounded-2xl text-white">
             <Star size={24} strokeWidth={2} fill="currentColor" />
           </div>
           <div>
@@ -269,7 +269,7 @@ export const StatsScreen = () => {
               className={`flex flex-col items-center p-4 rounded-2xl border-2 transition-all ${
                 badge.unlocked
                   ? "bg-card-bg border-brand-accent shadow-lg shadow-brand-accent/10"
-                  : "bg-bg-primary border-brand-ink/5 opacity-60 grayscale"
+                  : "bg-bg-primary border-border-subtle opacity-60 grayscale"
               }`}
             >
               <div

@@ -37,7 +37,7 @@ const ICONS: Record<ToastType, React.ReactNode> = {
 };
 
 const TONES: Record<ToastType, string> = {
-  success: "bg-brand-success text-brand-ink",
+  success: "bg-brand-success text-white",
   error: "bg-red-500 text-white",
   info: "bg-brand-secondary text-white",
 };

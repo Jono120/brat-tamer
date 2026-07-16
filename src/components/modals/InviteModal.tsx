@@ -30,7 +30,7 @@ export const InviteModal = () => {
           Share this link with a friend. Once they join, you'll be connected!
         </p>
 
-        <div className="flex items-center gap-2 p-2 bg-card-bg rounded-xl border border-brand-ink/5 mb-4">
+        <div className="flex items-center gap-2 p-2 bg-card-bg rounded-xl border border-border-subtle mb-4">
           <div className="flex-1 text-xs font-mono text-muted truncate px-2">
             {inviteLink}
           </div>

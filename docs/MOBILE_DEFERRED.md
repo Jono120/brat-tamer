@@ -17,7 +17,7 @@ implemented; remaining manual steps (credentials, store consoles, device QA) are
 
 - [x] Set `VITE_API_BASE` per environment (staging vs production) in Capacitor build scripts
       (`build:cap:staging` / `build:cap:prod` + `.env.capacitor-*` files)
-- [x] Document env file layout for `build:cap` in README
+- [x] Document env file layout for `build:cap` in [DEVELOPMENT.md](DEVELOPMENT.md)
 
 ## Assets
 
@@ -45,7 +45,7 @@ implemented; remaining manual steps (credentials, store consoles, device QA) are
 
 ## References
 
-- Root `README.md` mobile section
+- [docs/DEVELOPMENT.md](DEVELOPMENT.md) — Capacitor build scripts
 - [docs/MOBILE_RELEASE.md](MOBILE_RELEASE.md) — release runbook (manual steps + device QA)
 - `docs/SUPABASE.md` Capacitor / deep-link notes
 - `supabase/config.toml` `additional_redirect_urls`

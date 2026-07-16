@@ -158,7 +158,7 @@ export const HomeScreen = () => {
                     className={`w-full h-full sticker-slot relative flex flex-col items-center justify-center min-h-32 pt-10 pb-4 px-2 rounded-[32px] border-2 transition-all overflow-hidden ${
                       isEarned
                         ? "bg-card-bg border-brand-secondary shadow-lg shadow-brand-secondary/20"
-                        : "bg-bg-primary border-dashed border-brand-ink/15"
+                        : "bg-bg-primary border-dashed border-border-subtle"
                     } ${isGlobal ? "border-brand-accent/40" : ""}`}
                   >
                     {hasProgress && !isEarned && currentCount > 0 && (
@@ -175,7 +175,7 @@ export const HomeScreen = () => {
                     )}
 
                     {isGlobal && (
-                      <div className="absolute top-2 right-2 bg-brand-accent/15 text-brand-ink text-[11px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">
+                      <div className="absolute top-2 right-2 bg-brand-accent/15 text-brand-accent text-[11px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest">
                         Global
                       </div>
                     )}

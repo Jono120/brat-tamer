@@ -11,7 +11,8 @@ const config: CapacitorConfig = {
   appName: "CareStickers",
   webDir: "dist",
   android: {
-    allowMixedContent: false,
+    // Capacitor WebView is https://localhost; local dev API is http://10.0.2.2:3001.
+    allowMixedContent: true,
   },
   ios: {
     contentInset: "automatic",

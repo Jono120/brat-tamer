@@ -53,6 +53,33 @@ export const FAQ_ITEMS = [
   },
 ];
 
+export const PRIVACY_SECTIONS = [
+  {
+    heading: "What we collect",
+    body: "When you create an account we store your email address, display name, and optional profile photo. We also store your self-care goals, sticker progress, social interactions (high-fives and messages), and group membership if you join one.",
+  },
+  {
+    heading: "How we use your data",
+    body: "Your data powers the CareStickers experience: tracking goals, sharing progress with friends you connect with, and community features. We do not sell your personal information.",
+  },
+  {
+    heading: "Storage",
+    body: "Data is stored in a managed PostgreSQL database hosted by Supabase. Profile photos are stored in Supabase Storage. Authentication is handled by Supabase Auth.",
+  },
+  {
+    heading: "Third parties",
+    body: "If you sign in with Google or Apple, those providers process your credentials according to their own privacy policies. We receive only the profile information they share with us.",
+  },
+  {
+    heading: "Your choices",
+    body: "You can update your profile, disconnect from friends, and delete goals at any time within the app. To request account deletion, contact the project maintainer.",
+  },
+  {
+    heading: "Contact",
+    body: "Questions about this policy? Use the in-app feedback form or reach out via the support links on the Settings screen.",
+  },
+];
+
 export const ONBOARDING_STEPS = [
   {
     title: "Welcome to CareStickers!",

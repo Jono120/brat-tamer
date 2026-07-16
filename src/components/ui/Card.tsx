@@ -17,7 +17,7 @@ export const Card = ({
   ...props
 }: CardProps) => (
   <Tag
-    className={`bg-card-bg rounded-[32px] p-6 border-2 border-brand-ink/5 shadow-sm ${className}`}
+    className={`bg-card-bg rounded-[32px] p-6 border-2 border-border-subtle shadow-sm ${className}`}
     {...props}
   >
     {children}

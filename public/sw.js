@@ -13,6 +13,9 @@ self.addEventListener('install', event => {
 });
 
 self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  // Never intercept API or other cross-origin requests.
+  if (url.origin !== self.location.origin || event.request.method !== 'GET') return;
   event.respondWith(
     caches.match(event.request)
       .then(response => response || fetch(event.request))

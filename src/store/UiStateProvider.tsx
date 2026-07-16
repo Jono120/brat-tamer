@@ -29,6 +29,8 @@ interface UiStateContextValue {
   setShowInviteModal: (v: boolean) => void;
   showHelpModal: boolean;
   setShowHelpModal: (v: boolean) => void;
+  showPrivacyModal: boolean;
+  setShowPrivacyModal: (v: boolean) => void;
   showAvatarModal: boolean;
   setShowAvatarModal: (v: boolean) => void;
   showCreateGroup: boolean;
@@ -68,6 +70,7 @@ export const UiStateProvider = ({
   const [showFeedback, setShowFeedback] = useState(false);
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -88,6 +91,8 @@ export const UiStateProvider = ({
       setShowInviteModal,
       showHelpModal,
       setShowHelpModal,
+      showPrivacyModal,
+      setShowPrivacyModal,
       showAvatarModal,
       setShowAvatarModal,
       showCreateGroup,
@@ -118,6 +123,7 @@ export const UiStateProvider = ({
       showFeedback,
       showInviteModal,
       showHelpModal,
+      showPrivacyModal,
       showAvatarModal,
       showCreateGroup,
       editingTask,

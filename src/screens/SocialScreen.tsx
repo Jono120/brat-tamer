@@ -45,7 +45,7 @@ export const SocialScreen = () => {
               <div
                 className={`p-2 rounded-xl ${
                   interaction.type === "high-five"
-                    ? "bg-brand-accent text-brand-ink shadow-lg shadow-brand-accent/20"
+                    ? "bg-brand-accent text-white shadow-lg shadow-brand-accent/20"
                     : "bg-brand-primary text-white shadow-lg shadow-brand-primary/20"
                 }`}
               >
@@ -70,7 +70,7 @@ export const SocialScreen = () => {
                   </div>
                 </div>
                 {interaction.content && (
-                  <div className="bg-card-bg/60 p-3 rounded-xl border border-brand-ink/5 mt-2">
+                  <div className="bg-card-bg/60 p-3 rounded-xl border border-border-subtle mt-2">
                     <p className="text-sm text-brand-ink italic">
                       "{interaction.content}"
                     </p>
@@ -95,7 +95,7 @@ export const SocialScreen = () => {
             {friends.map((friend) => (
               <div
                 key={friend.uid}
-                className="flex items-center gap-3 bg-card-bg p-3 rounded-2xl border border-brand-ink/5"
+                className="flex items-center gap-3 bg-card-bg p-3 rounded-2xl border border-border-subtle"
               >
                 <img
                   src={
@@ -103,7 +103,7 @@ export const SocialScreen = () => {
                     `https://api.dicebear.com/7.x/avataaars/svg?seed=${friend.uid}`
                   }
                   alt=""
-                  className="w-10 h-10 rounded-full object-cover border border-brand-ink/10"
+                  className="w-10 h-10 rounded-full object-cover border border-border-subtle"
                 />
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-bold text-brand-ink truncate">
@@ -117,7 +117,7 @@ export const SocialScreen = () => {
                 <IconButton
                   label={`Send high-five to ${friend.displayName}`}
                   size="sm"
-                  className="bg-brand-accent text-brand-ink"
+                  className="bg-brand-accent text-white"
                   onClick={() => sendInteraction(friend.uid, "high-five")}
                 >
                   <HandMetal size={14} strokeWidth={2} />

@@ -14,10 +14,10 @@ const VARIANTS: Record<Variant, string> = {
   secondary:
     "bg-card-bg text-brand-secondary border-2 border-brand-secondary active:scale-[0.98]",
   ghost:
-    "bg-card-bg text-brand-ink border border-brand-ink/10 active:scale-[0.98]",
+    "bg-card-bg text-brand-ink border border-border-subtle active:scale-[0.98]",
   danger:
     "bg-red-500 text-white shadow-lg shadow-red-500/20 active:scale-[0.98]",
-  accent: "bg-brand-accent text-brand-ink active:scale-[0.98]",
+  accent: "bg-brand-accent text-white active:scale-[0.98]",
 };
 
 const SIZES: Record<Size, string> = {

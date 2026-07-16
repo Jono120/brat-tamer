@@ -34,6 +34,7 @@ import { FeedbackModal } from "./modals/FeedbackModal";
 import { AvatarModal } from "./modals/AvatarModal";
 import { InviteModal } from "./modals/InviteModal";
 import { HelpModal } from "./modals/HelpModal";
+import { PrivacyModal } from "./modals/PrivacyModal";
 import { CreateGroupModal } from "./modals/CreateGroupModal";
 import { OnboardingOverlay } from "./modals/OnboardingOverlay";
 import { useAuth, useTasks } from "../store/hooks";
@@ -119,20 +120,33 @@ const Shell = () => {
               {earnedCount} / {totalCount}
             </div>
           </div>
-          <div className="text-right">
-            <span className="text-xs font-bold uppercase tracking-wider text-muted-strong">
-              Streak
-            </span>
-            <div className="text-2xl font-black text-brand-primary flex items-center gap-1 justify-end">
-              <Zap size={20} strokeWidth={2} fill="currentColor" />
-              {streak}
+          <div className="flex flex-col items-end gap-2">
+            {isHome && (
+              <button
+                id="add-goal-btn"
+                type="button"
+                aria-label="Add a new goal"
+                onClick={() => openAddTask(null)}
+                className="w-11 h-11 bg-brand-primary text-white rounded-full flex items-center justify-center shadow-lg shadow-brand-primary/30 active:scale-[0.97] transition-transform"
+              >
+                <Plus size={24} strokeWidth={2.5} />
+              </button>
+            )}
+            <div className="text-right">
+              <span className="text-xs font-bold uppercase tracking-wider text-muted-strong">
+                Streak
+              </span>
+              <div className="text-2xl font-black text-brand-primary flex items-center gap-1 justify-end">
+                <Zap size={20} strokeWidth={2} fill="currentColor" />
+                {streak}
+              </div>
             </div>
           </div>
         </div>
         <ProgressBar value={progress} label="Daily goal progress" />
       </div>
 
-      <main className="@container flex-1 overflow-y-auto px-6 md:px-8 pb-24">
+      <main className="@container flex-1 overflow-y-auto px-6 md:px-8 pb-24 [scrollbar-gutter:stable]">
         <Routes>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/stats" element={<StatsScreen />} />
@@ -146,21 +160,9 @@ const Shell = () => {
         </Routes>
       </main>
 
-      {isHome && (
-        <button
-          id="add-goal-btn"
-          type="button"
-          aria-label="Add a new goal"
-          onClick={() => openAddTask(null)}
-          className="absolute bottom-28 right-6 w-14 h-14 bg-brand-primary text-white rounded-full flex items-center justify-center shadow-xl shadow-brand-primary/40 active:scale-90 transition-transform z-10"
-        >
-          <Plus size={32} strokeWidth={2.5} />
-        </button>
-      )}
-
       <nav
         aria-label="Primary"
-        className="bg-card-bg border-t border-brand-ink/5 flex justify-around items-stretch px-2 pb-[env(safe-area-inset-bottom,0px)]"
+        className="bg-card-bg border-t border-border-subtle flex justify-around items-stretch px-2 pb-[env(safe-area-inset-bottom,0px)]"
       >
         {navItems.map((item) => {
           const Icon = NAV_ICONS[item.icon];
@@ -203,6 +205,7 @@ const Shell = () => {
       <AvatarModal />
       <InviteModal />
       <HelpModal />
+      <PrivacyModal />
       <CreateGroupModal />
       <OnboardingOverlay />
     </div>

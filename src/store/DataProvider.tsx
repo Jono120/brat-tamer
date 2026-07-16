@@ -535,6 +535,9 @@ export const DataProvider = ({ children }: { children: React.ReactNode }) => {
     setOnboardingStep(null);
     setHasLoadedData(false);
     applyTheme(undefined);
+    if (window.location.hash !== "#/") {
+      window.location.hash = "#/";
+    }
   }, []);
 
   const toggleTheme = useCallback(async () => {

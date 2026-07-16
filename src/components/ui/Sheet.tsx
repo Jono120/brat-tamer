@@ -4,9 +4,26 @@
  */
 
 import React, { useEffect, useId, useRef } from "react";
-import { motion, AnimatePresence } from "motion/react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { X } from "lucide-react";
 import { IconButton } from "./IconButton";
+
+const MAIN_SCROLL_SELECTOR = ".app-container > main";
+
+function lockMainScroll(): (() => void) | undefined {
+  const main = document.querySelector<HTMLElement>(MAIN_SCROLL_SELECTOR);
+  if (!main) return undefined;
+  const scrollTop = main.scrollTop;
+  main.style.overflow = "hidden";
+  return () => {
+    main.style.overflow = "";
+    main.scrollTop = scrollTop;
+  };
+}
+
+function focusWithoutScroll(el: HTMLElement | null | undefined) {
+  el?.focus({ preventScroll: true });
+}
 
 export interface SheetProps {
   open: boolean;
@@ -34,6 +51,7 @@ export const Sheet = ({
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
   const previouslyFocused = useRef<HTMLElement | null>(null);
+  const reduceMotion = useReducedMotion();
 
   // Callers pass inline `onClose` handlers whose identity changes on every
   // render (including the 4s data-polling refresh). Reading it through a ref
@@ -47,6 +65,7 @@ export const Sheet = ({
 
   useEffect(() => {
     if (!open) return;
+    const unlockScroll = lockMainScroll();
     previouslyFocused.current = document.activeElement as HTMLElement | null;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCloseRef.current();
@@ -57,16 +76,22 @@ export const Sheet = ({
     const t = window.setTimeout(() => {
       const panel = panelRef.current;
       if (!panel || panel.contains(document.activeElement)) return;
-      panel.focus();
+      focusWithoutScroll(panel);
     }, 0);
     return () => {
       document.removeEventListener("keydown", onKey);
       window.clearTimeout(t);
-      previouslyFocused.current?.focus?.();
+      unlockScroll?.();
+      focusWithoutScroll(previouslyFocused.current);
     };
   }, [open]);
 
   const isBottom = variant === "bottom";
+  const panelTransition = reduceMotion
+    ? { duration: 0 }
+    : isBottom
+      ? { type: "tween" as const, duration: 0.28, ease: [0.32, 0.72, 0, 1] as const }
+      : { type: "tween" as const, duration: 0.2, ease: [0.32, 0.72, 0, 1] as const };
 
   return (
     <AnimatePresence>
@@ -90,7 +115,7 @@ export const Sheet = ({
             initial={isBottom ? { y: "100%" } : { scale: 0.92, opacity: 0 }}
             animate={isBottom ? { y: 0 } : { scale: 1, opacity: 1 }}
             exit={isBottom ? { y: "100%" } : { scale: 0.92, opacity: 0 }}
-            transition={{ type: "spring", damping: 25, stiffness: 220 }}
+            transition={panelTransition}
             className={
               isBottom
                 ? `w-full max-w-xl mx-auto bg-card-bg rounded-t-[40px] lg:rounded-b-[40px] lg:mb-6 p-8 pb-[calc(2rem+env(safe-area-inset-bottom,0px))] outline-none ${

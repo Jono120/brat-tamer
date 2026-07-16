@@ -53,7 +53,7 @@ export const AdminScreen = () => {
             {adminFeedback.map((fb) => (
               <div
                 key={fb.id}
-                className="p-3 bg-bg-primary rounded-2xl border border-brand-ink/5"
+                className="p-3 bg-bg-primary rounded-2xl border border-border-subtle"
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-black uppercase text-brand-primary">

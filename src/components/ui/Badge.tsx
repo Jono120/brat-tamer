@@ -9,7 +9,7 @@ type Tone = "primary" | "accent" | "success" | "neutral";
 
 const TONES: Record<Tone, string> = {
   primary: "bg-brand-primary/10 text-brand-primary",
-  accent: "bg-brand-accent/15 text-brand-ink",
+  accent: "bg-brand-accent/15 text-brand-accent",
   success: "bg-brand-success/15 text-brand-ink",
   neutral: "bg-brand-ink/10 text-muted-strong",
 };

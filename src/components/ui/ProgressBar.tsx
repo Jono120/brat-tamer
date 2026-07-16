@@ -29,7 +29,7 @@ export const ProgressBar = ({
       aria-valuemin={0}
       aria-valuemax={max}
       aria-label={label}
-      className={`h-3 bg-brand-ink/10 rounded-full overflow-hidden ${className}`}
+      className={`h-3 bg-brand-ink/12 rounded-full overflow-hidden ${className}`}
     >
       <motion.div
         initial={{ width: 0 }}

@@ -1,6 +1,8 @@
+@import "@fontsource-variable/lexend";
 @import "tailwindcss";
 
 @theme {
+  --font-sans: "Lexend Variable", "Lexend", ui-sans-serif, system-ui, sans-serif;
   --color-bg-primary: var(--bg-color);
   --color-brand-primary: var(--primary);
   --color-brand-secondary: var(--secondary);
@@ -12,6 +14,7 @@
      unlike the old opacity-40 / ink/20 treatment. */
   --color-muted: var(--muted);
   --color-muted-strong: var(--muted-strong);
+  --color-border-subtle: var(--border-subtle);
 }
 
 :root {
@@ -21,16 +24,18 @@
      phones (~15px) up to laptop screens (~17px). */
   font-size: clamp(15px, 14px + 0.4vw, 17px);
   --bg-color: #fef9ef;
-  --primary: #ff865e;
-  --secondary: #a2d2ff;
-  --accent: #fee440;
-  --success: #70e000;
+  /* Deeper brand hues so text and icons meet AA on white/cream surfaces. */
+  --primary: #c94925;
+  --secondary: #2b6cb0;
+  --accent: #9a7b0a;
+  --success: #4a8f00;
   --ink: #2b2d42;
   --card-bg: #ffffff;
+  --border-subtle: color-mix(in srgb, var(--ink) 16%, transparent);
   /* ~4.6:1 on #fff, ~4.5:1 on #fef9ef -> AA for body text */
-  --muted: #5b5e72;
+  --muted: #46495c;
   /* For small uppercase labels; slightly lighter but still legible */
-  --muted-strong: #45485a;
+  --muted-strong: #323448;
 }
 
 .dark {
@@ -42,6 +47,7 @@
   --success: #70e000;
   --ink: #f0f0f0;
   --card-bg: #24283b;
+  --border-subtle: color-mix(in srgb, var(--ink) 10%, transparent);
   /* light-grey that meets AA on the dark card/background surfaces */
   --muted: #aab0c6;
   --muted-strong: #c4c9da;
@@ -56,13 +62,7 @@ body {
 
 body {
   color: var(--ink);
-  font-family:
-    "Inter",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
