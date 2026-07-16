@@ -3,18 +3,17 @@
 ## Prerequisites
 
 - Node.js 20+ (CI uses Node.js 24).
-- A Supabase project (managed PostgreSQL + Auth), **or** local Postgres via Docker Compose /
-  `npm run db:start`. See [SUPABASE.md](SUPABASE.md).
+- A Supabase project (managed PostgreSQL + Auth), **or** local Postgres via Docker Compose / `npm run db:start`. See [SUPABASE.md](SUPABASE.md).
 
 ## Quick start
 
 ```bash
 npm install
-cp .env.example .env   # fill in values — see Configuration below
+cp .env.example .env # fill in values — see Configuration below
 npx supabase login
 npx supabase link --project-ref <SUPABASE_PROJECT_ID>
 npm run db:push
-npm run dev            # Vite :3000 + API :3001, /api proxied
+npm run dev # Vite :3000 + API :3001, /api proxied
 ```
 
 Run client and server separately if you prefer: `npm run dev:client` and `npm run dev:server`.
@@ -23,7 +22,7 @@ Production build and serve:
 
 ```bash
 npm run build
-npm start              # API + static files from dist/ when present
+npm start # API + static files from dist/ when present
 ```
 
 ## Configuration
@@ -53,8 +52,7 @@ Copy `.env.example` to `.env`. Never commit real secrets.
 | `ALLOW_CAPACITOR_ORIGINS` | Set `false` to disable auto-allowing Capacitor WebView origins. |
 | `FCM_SERVICE_ACCOUNT_JSON` | Firebase service account for push sends. See [MOBILE_RELEASE.md](MOBILE_RELEASE.md). |
 
-Auth providers (Google / Apple / email) are configured in the Supabase dashboard and
-`supabase/config.toml`, not in server env. See [SUPABASE.md §2](SUPABASE.md#2-auth-provider-configuration).
+Auth providers (Google / Apple / email) are configured in the Supabase dashboard and `supabase/config.toml`, not in server env. See [SUPABASE.md §2](SUPABASE.md#2-auth-provider-configuration).
 
 ### Client (Vite — public by design)
 
@@ -101,8 +99,7 @@ Supabase CLI scripts are also documented in [SUPABASE.md](SUPABASE.md#cli-script
 ## Testing
 
 Tests use **Vitest**, **Testing Library**, and **jsdom** for React. Server logic uses a mocked
-PostgreSQL ([pg-mem](https://github.com/oguimbal/pg-mem)) with the canonical schema from
-`supabase/migrations/0001_initial_schema.sql` (`0002` is excluded — pg-mem has no `auth` schema).
+PostgreSQL ([pg-mem](https://github.com/oguimbal/pg-mem)) with the canonical schema from `supabase/migrations/0001_initial_schema.sql` (`0002` is excluded — pg-mem has no `auth` schema).
 
 | Location | Coverage |
 | --- | --- |
@@ -113,8 +110,7 @@ PostgreSQL ([pg-mem](https://github.com/oguimbal/pg-mem)) with the canonical sch
 | `src/components/ErrorBoundary.test.tsx` | Error boundary UI |
 | `src/api/client.test.ts` | Session token, `fetch` + auth headers, 401 sign-out |
 
-Run `npm run test:run` before releases. pg-mem is not identical to production PostgreSQL — validate
-critical paths against a real Postgres instance in staging.
+Run `npm run test:run` before releases. pg-mem is not identical to production PostgreSQL — validate critical paths against a real Postgres instance in staging.
 
 ## Related docs
 

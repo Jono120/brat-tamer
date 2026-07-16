@@ -98,7 +98,7 @@ export const ONBOARDING_STEPS = [
   {
     title: "Earn Stickers",
     description:
-      "Tap a goal to earn a sticker. Watch your chart fill up with color!",
+      "Tap a goal to earn a sticker. Watch your chart fill up with colour!",
     icon: <Check size={48} strokeWidth={2} className="text-brand-primary" />,
     target: "#sticker-grid",
   },

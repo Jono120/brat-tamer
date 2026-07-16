@@ -1,39 +1,29 @@
 # Mobile (Phase 4) — Deferred Checklist
 
-Native mobile work was deferred until the web app was stable. The code-level items below are now
-implemented; remaining manual steps (credentials, store consoles, device QA) are tracked in
-[docs/MOBILE_RELEASE.md](MOBILE_RELEASE.md).
+Native mobile work was deferred until the web app was stable. The code-level items below are now implemented; remaining manual steps (credentials, store consoles, device QA) are tracked in [docs/MOBILE_RELEASE.md](MOBILE_RELEASE.md).
 
 ## OAuth deep links
 
-- [x] Configure `redirectTo` using `com.carestickers.app://auth-callback` per `supabase/config.toml`
-      (`src/lib/native.ts` + native branch in `loginWithProvider`)
+- [x] Configure `redirectTo` using `com.carestickers.app://auth-callback` per `supabase/config.toml` (`src/lib/native.ts` + native branch in `loginWithProvider`)
 - [x] Use `@capacitor/browser` for system-browser OAuth instead of in-WebView redirects
-- [x] Add the custom scheme to Supabase Auth allowed redirect URLs (`config.toml`; dashboard
-      allow-list is a manual step — see MOBILE_RELEASE.md §2)
+- [x] Add the custom scheme to Supabase Auth allowed redirect URLs (`config.toml`; dashboard allow-list is a manual step — see MOBILE_RELEASE.md §2)
 - [ ] Test Google and Apple sign-in on iOS and Android physical devices (MOBILE_RELEASE.md §2)
 
 ## Build matrix
 
-- [x] Set `VITE_API_BASE` per environment (staging vs production) in Capacitor build scripts
-      (`build:cap:staging` / `build:cap:prod` + `.env.capacitor-*` files)
+- [x] Set `VITE_API_BASE` per environment (staging vs production) in Capacitor build scripts (`build:cap:staging` / `build:cap:prod` + `.env.capacitor-*` files)
 - [x] Document env file layout for `build:cap` in [DEVELOPMENT.md](DEVELOPMENT.md)
 
 ## Assets
 
-- [x] Generate app icons and splash screens via `@capacitor/assets` (`npm run assets:generate`;
-      placeholder art in `assets/` — replace with final branding per MOBILE_RELEASE.md §3)
+- [x] Generate app icons and splash screens via `@capacitor/assets` (`npm run assets:generate`; placeholder art in `assets/` — replace with final branding per MOBILE_RELEASE.md §3)
 - [ ] Verify safe-area insets on notched devices (helpers shipped; device QA in MOBILE_RELEASE.md §3)
 
 ## Push notifications
 
-- [x] Integrate FCM (Android) and APNs (iOS) for native push — scaffold complete
-      (`supabase/migrations/0007_push_tokens.sql`, `server/src/push.ts`, `/api/push/register`,
-      `src/lib/nativePush.ts`); Firebase/APNs credentials are manual (MOBILE_RELEASE.md §4)
-- [x] Bridge Web Push permission flow to native where appropriate (Settings toggle requests
-      native permission and registers the device token)
-- [x] Handle notification taps opening the Social tab (`pushNotificationActionPerformed` →
-      `#/social`)
+- [x] Integrate FCM (Android) and APNs (iOS) for native push — scaffold complete (`supabase/migrations/0007_push_tokens.sql`, `server/src/push.ts`, `/api/push/register`, `src/lib/nativePush.ts`); Firebase/APNs credentials are manual (MOBILE_RELEASE.md §4)
+- [x] Bridge Web Push permission flow to native where appropriate (Settings toggle requests native permission and registers the device token)
+- [x] Handle notification taps opening the Social tab (`pushNotificationActionPerformed` → `#/social`)
 
 ## Store submission
 

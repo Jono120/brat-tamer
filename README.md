@@ -3,8 +3,7 @@
 [![Supabase Deployment](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml)
 [![CI](https://github.com/Jono120/brat-tamer/actions/workflows/ci.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/ci.yml)
 
-CareStickers is a social self-care tracking app: set personal and community goals, earn stickers,
-share progress with friends, and stay motivated together.
+CareStickers is a social self-care tracking app: set personal and community goals, earn stickers, share progress with friends, and stay motivated together.
 
 ## Features
 
@@ -23,15 +22,14 @@ share progress with friends, and stay motivated together.
 
 ```bash
 npm install
-cp .env.example .env          # configure API + Vite vars
+cp .env.example .env # configure API + Vite vars
 npx supabase login
 npx supabase link --project-ref <SUPABASE_PROJECT_ID>
 npm run db:push
-npm run dev                   # SPA :3000, API :3001
+npm run dev # SPA :3000, API :3001
 ```
 
-Production: `npm run build` then `npm start`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for
-env vars, scripts, and testing.
+Production: `npm run build` then `npm start`. See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) for env vars, scripts, and testing.
 
 ## Documentation
 
@@ -46,16 +44,12 @@ env vars, scripts, and testing.
 
 ## Stack (summary)
 
-React 19 · Vite · Tailwind · Express · Supabase (Postgres, Auth, Realtime, Storage) · Capacitor
-for iOS/Android. One container image serves the API and static SPA.
+React 19 · Vite · Tailwind · Express · Supabase (Postgres, Auth, Realtime, Storage) · Capacitor for iOS/Android. One container image serves the API and static SPA.
 
 ## Security
 
-Identities and sessions are managed by **Supabase Auth**; the API verifies JWTs (JWKS) and enforces
-access server-side. Keep `SUPABASE_SECRET_KEY`, database credentials, and provider secrets in
-`.env` only — never in the repo or client bundle. See
-[docs/SUPABASE.md §8](docs/SUPABASE.md#8-security-notes).
+Identities and sessions are managed by **Supabase Auth**; the API verifies JWTs (JWKS) and enforces access server-side. Keep `SUPABASE_SECRET_KEY`, database credentials, and provider secrets in `.env` only — never in the repo or client bundle. See [docs/SUPABASE.md §8](docs/SUPABASE.md#8-security-notes).
 
-## License
+## Licence
 
 See SPDX headers in source files where applicable (e.g. `App.tsx`).

@@ -104,12 +104,9 @@ flowchart TB
 
 **Development** — Vite serves the SPA on port 3000 and proxies `/api/*` to Express on port 3001.
 
-**Production (web)** — Host the API and static `dist/` on the **same HTTPS origin** so the client
-uses relative `/api` paths and CORS stays simple.
+**Production (web)** — Host the API and static `dist/` on the **same HTTPS origin** so the client uses relative `/api` paths and CORS stays simple.
 
-**Production (mobile)** — Capacitor WebViews are **not** same-origin with your server. Build with
-`VITE_API_BASE` set to your public API URL (no trailing slash). See
-[MOBILE_RELEASE.md](MOBILE_RELEASE.md).
+**Production (mobile)** — Capacitor WebViews are **not** same-origin with your server. Build with `VITE_API_BASE` set to your public API URL (no trailing slash). See [MOBILE_RELEASE.md](MOBILE_RELEASE.md).
 
 ## Related docs
 
