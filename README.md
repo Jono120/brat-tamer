@@ -1,9 +1,26 @@
 # CareStickers Application
 
+> [!IMPORTANT]
+> **In development** — CareStickers is still in active development. Features, APIs, and hosting may change before a stable release.
+
+
 [![Supabase Deployment](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml)
 [![CI](https://github.com/Jono120/brat-tamer/actions/workflows/ci.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/ci.yml)
 
-CareStickers is a social self-care tracking app: set personal and community goals, earn stickers, share progress with friends, and stay motivated together.
+Welcome to CareStickers, this is a social self-care tracking app: set personal and community goals, earn stickers, share progress with friends, and stay motivated together. You can be part of a team or a team admin for your friends or family.
+
+
+> We will protect your privacy with the application storage and never share any details to third parties or internally unless you are providing bug information.
+
+
+<p align="center">
+  <img
+    src="docs/images/carestickers_homeWeb-User.png"
+    alt="CareStickers home screen — personal goals and daily progress"
+    width="400"
+    height="200"
+  />
+</p>
 
 ## Features
 
@@ -48,7 +65,7 @@ React 19 · Vite · Tailwind · Express · Supabase (Postgres, Auth, Realtime, S
 
 ## Security
 
-Identities and sessions are managed by **Supabase Auth**; the API verifies JWTs (JWKS) and enforces access server-side. Keep `SUPABASE_SECRET_KEY`, database credentials, and provider secrets in `.env` only — never in the repo or client bundle. See [docs/SUPABASE.md §8](docs/SUPABASE.md#8-security-notes).
+Identities and sessions are managed by **Supabase Auth**; the API verifies JWTs (JWKS) and enforces access server-side. Keep `SUPABASE_SECRET_KEY`, database credentials, and provider secrets in `.env` only — never in the repo or client bundle. See [docs/SUPABASE.md S8](docs/SUPABASE.md#8-security-notes).
 
 ## Licence
 

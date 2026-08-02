@@ -52,7 +52,7 @@ Copy `.env.example` to `.env`. Never commit real secrets.
 | `ALLOW_CAPACITOR_ORIGINS` | Set `false` to disable auto-allowing Capacitor WebView origins. |
 | `FCM_SERVICE_ACCOUNT_JSON` | Firebase service account for push sends. See [MOBILE_RELEASE.md](MOBILE_RELEASE.md). |
 
-Auth providers (Google / Apple / email) are configured in the Supabase dashboard and `supabase/config.toml`, not in server env. See [SUPABASE.md §2](SUPABASE.md#2-auth-provider-configuration).
+Auth providers (Google / Apple / email) are configured in the Supabase dashboard and `supabase/config.toml`, not in server env. See [SUPABASE.md S2](SUPABASE.md#2-auth-provider-configuration).
 
 ### Client (Vite — public by design)
 

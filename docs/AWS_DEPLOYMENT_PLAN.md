@@ -11,7 +11,7 @@ Provide a usable, secure test environment for web and Capacitor (iOS/Android) te
 - Application container (Express API + static SPA) runs in the **same AWS region** as the Supabase database, keeping API-to-database round trips on the AWS backbone.
 - Public **HTTPS endpoint on a trusted certificate** (required by iOS ATS and the OAuth deep-link flow).
 - **No secrets** in the repository, image, or GitHub repository variables — runtime secrets live in AWS Secrets Manager.
-- **Encryption in transit on every hop** and at rest in every store (see §5).
+- **Encryption in transit on every hop** and at rest in every store (see S5).
 - Cost proportional to a test workload (single-digit USD per month at idle).
 
 ## 2. Target architecture
@@ -19,7 +19,7 @@ Provide a usable, secure test environment for web and Capacitor (iOS/Android) te
 | Piece | Choice | Why |
 | --- | --- | --- |
 | Region | `ap-southeast-1` (Singapore) | Matches the Supabase project; ~1 ms to the Supavisor pooler |
-| Compute | AWS App Runner, 0.25 vCPU / 0.5 GB, **max 1 instance** | Managed TLS, Secrets Manager integration, memory-only billing at idle; instance cap protects the t4g.nano database (§4.2) |
+| Compute | AWS App Runner, 0.25 vCPU / 0.5 GB, **max 1 instance** | Managed TLS, Secrets Manager integration, memory-only billing at idle; instance cap protects the t4g.nano database (S4.2) |
 | Image registry | Amazon ECR (private) | App Runner cannot pull from GHCR; auto-deploy on push |
 | Secrets | AWS Secrets Manager | KMS-encrypted, injected into App Runner as env vars, rotation without rebuild |
 | CI/CD | Existing Container workflow + ECR push | Trivy gate retained; GitHub OIDC role, no long-lived AWS keys |
@@ -50,7 +50,7 @@ flowchart TB
         POOL --> DB
     end
 
-    AR -- "TLS, verify-full (§5.2)" --> POOL
+    AR -- "TLS, verify-full (S5.2)" --> POOL
     AR -- "HTTPS (JWKS verification)" --> AUTH
     WEB & MOB -- "HTTPS (supabase-js:<br/>auth, realtime)" --> AUTH
     WEB & MOB -.-> STORE
@@ -101,7 +101,7 @@ flowchart TB
 ## 4. Encryption between environments
 
 "End-to-end" here means **every hop is TLS-encrypted and every store is encrypted at rest, with server identity verified on each hop**. (True client-side E2EE — where the server cannot read user data — is a different, application-level undertaking; see
-§4.4.)
+S4.4.)
 
 ### 4.1 In transit — hop by hop
 

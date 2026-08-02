@@ -5,7 +5,7 @@ Vite-built SPA from the same origin.
 
 ## Production checklist (web + API)
 
-1. **Database** — Apply migrations with `npm run db:push`. CI runs this on merge to `main` ([SUPABASE.md §5](SUPABASE.md#5-cicd)).
+1. **Database** — Apply migrations with `npm run db:push`. CI runs this on merge to `main` ([SUPABASE.md S5](SUPABASE.md#5-cicd)).
 2. **Environment** — Set `DATABASE_URL` (Supavisor pooler), `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `FRONTEND_URL`, `ADMIN_EMAILS`. Build-time client vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. Use HTTPS everywhere.
 3. **Build** — `npm run build` produces `dist/`.
 4. **Run** — `npm start` serves API + static assets. Terminate TLS at your reverse proxy (nginx, Caddy, platform edge) if needed.
@@ -64,7 +64,7 @@ A staged AWS test-environment plan (App Runner, ECR, Secrets Manager, same-regio
 
 - Supabase Auth is the identity source; the API verifies JWTs via JWKS and enforces ownership/admin checks in application code.
 - `SUPABASE_SECRET_KEY` and `DATABASE_URL` are server-only — never in the client bundle or repo.
-- RLS protects direct client and Realtime access; the API uses a privileged DB role. Details: [SUPABASE.md §8](SUPABASE.md#8-security-notes).
+- RLS protects direct client and Realtime access; the API uses a privileged DB role. Details: [SUPABASE.md S8](SUPABASE.md#8-security-notes).
 
 ## Related docs
 
