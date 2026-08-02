@@ -18,7 +18,6 @@ Welcome to CareStickers, this is a social self-care tracking app: set personal a
     src="docs/images/carestickers_homeWeb-User.png"
     alt="CareStickers home screen — personal goals and daily progress"
     width="400"
-    height="200"
   />
 </p>
 
