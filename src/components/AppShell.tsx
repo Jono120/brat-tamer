@@ -87,7 +87,7 @@ const Shell = () => {
   const isHome = location.pathname === "/";
 
   return (
-    <div className="app-container flex flex-col h-full overflow-hidden bg-bg-primary">
+    <div className="app-container flex flex-col min-h-0 bg-bg-primary">
       {/* Safe-area top spacer (replaces the fake status bar) */}
       <div className="safe-top" aria-hidden="true" />
 
@@ -146,7 +146,7 @@ const Shell = () => {
         <ProgressBar value={progress} label="Daily goal progress" />
       </div>
 
-      <main className="@container flex-1 overflow-y-auto px-6 md:px-8 pb-24 [scrollbar-gutter:stable]">
+      <main className="@container flex-1 min-h-0 overflow-y-auto px-6 md:px-8 pb-4 [scrollbar-gutter:stable]">
         <Routes>
           <Route path="/" element={<HomeScreen />} />
           <Route path="/stats" element={<StatsScreen />} />
@@ -162,7 +162,7 @@ const Shell = () => {
 
       <nav
         aria-label="Primary"
-        className="bg-card-bg border-t border-border-subtle flex justify-around items-stretch px-2 pb-[env(safe-area-inset-bottom,0px)]"
+        className="shrink-0 z-10 bg-card-bg border-t border-border-subtle flex justify-around items-stretch px-2 pb-[env(safe-area-inset-bottom,0px)]"
       >
         {navItems.map((item) => {
           const Icon = NAV_ICONS[item.icon];

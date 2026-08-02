@@ -5,8 +5,8 @@
 --
 -- Demo accounts (password for all: password123):
 --   admin@carestickers.local  — set ADMIN_EMAILS / VITE_ADMIN_EMAILS to this email for admin UI
---   alice@carestickers.local  — group admin, has friends, sticker history
---   bob@carestickers.local    — group member, social interactions
+--   manaaki@carestickers.local — group admin, has friends, sticker history
+--   marama@carestickers.local  — group member, social interactions
 --
 -- Fixed UUIDs keep re-seeds idempotent (ON CONFLICT DO NOTHING).
 
@@ -51,12 +51,12 @@ VALUES
     'a0000000-0000-4000-8000-000000000002',
     'authenticated',
     'authenticated',
-    'alice@carestickers.local',
+    'manaaki@carestickers.local',
     extensions.crypt('password123', extensions.gen_salt('bf')),
     NOW(),
     '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb,
-    '{"full_name":"Alice Chen","display_name":"Alice"}'::jsonb,
+    '{"full_name":"Manaaki Wilson","display_name":"Manaaki"}'::jsonb,
     NOW(),
     NOW()
   ),
@@ -65,12 +65,12 @@ VALUES
     'a0000000-0000-4000-8000-000000000003',
     'authenticated',
     'authenticated',
-    'bob@carestickers.local',
+    'marama@carestickers.local',
     extensions.crypt('password123', extensions.gen_salt('bf')),
     NOW(),
     '', '', '', '',
     '{"provider":"email","providers":["email"]}'::jsonb,
-    '{"full_name":"Bob Rivera","display_name":"Bob"}'::jsonb,
+    '{"full_name":"Marama Brown","display_name":"Marama"}'::jsonb,
     NOW(),
     NOW()
   )
@@ -100,7 +100,7 @@ VALUES
     'a0000000-0000-4000-8000-000000000002',
     'email',
     'a0000000-0000-4000-8000-000000000002',
-    '{"sub":"a0000000-0000-4000-8000-000000000002","email":"alice@carestickers.local"}'::jsonb,
+    '{"sub":"a0000000-0000-4000-8000-000000000002","email":"manaaki@carestickers.local"}'::jsonb,
     NOW(), NOW(), NOW()
   ),
   (
@@ -108,7 +108,7 @@ VALUES
     'a0000000-0000-4000-8000-000000000003',
     'email',
     'a0000000-0000-4000-8000-000000000003',
-    '{"sub":"a0000000-0000-4000-8000-000000000003","email":"bob@carestickers.local"}'::jsonb,
+    '{"sub":"a0000000-0000-4000-8000-000000000003","email":"marama@carestickers.local"}'::jsonb,
     NOW(), NOW(), NOW()
   )
 ON CONFLICT DO NOTHING;
@@ -125,15 +125,15 @@ UPDATE public.users SET
 WHERE id = 'a0000000-0000-4000-8000-000000000001';
 
 UPDATE public.users SET
-  display_name = 'Alice Chen',
+  display_name = 'Manaaki Wilson',
   has_completed_onboarding = TRUE,
-  photo_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=alice'
+  photo_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=manaaki'
 WHERE id = 'a0000000-0000-4000-8000-000000000002';
 
 UPDATE public.users SET
-  display_name = 'Bob Rivera',
+  display_name = 'Marama Brown',
   has_completed_onboarding = TRUE,
-  photo_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=bob'
+  photo_url = 'https://api.dicebear.com/7.x/avataaars/svg?seed=marama'
 WHERE id = 'a0000000-0000-4000-8000-000000000003';
 
 -- ---------------------------------------------------------------------------
@@ -298,7 +298,7 @@ INSERT INTO public.feedback (id, user_id, user_email, content, type, timestamp, 
 VALUES (
   'f0000000-0000-4000-8000-000000000001',
   'a0000000-0000-4000-8000-000000000003',
-  'bob@carestickers.local',
+  'marama@carestickers.local',
   'Would love a weekly summary email of stickers earned.',
   'feature',
   NOW() - INTERVAL '2 days',

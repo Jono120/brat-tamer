@@ -56,8 +56,14 @@
 html,
 body {
   margin: 0;
+  height: 100%;
   /* Tinted backdrop behind the centered app column on desktop */
   background-color: var(--bg-color);
+}
+
+#root {
+  height: 100%;
+  min-height: 100dvh;
 }
 
 body {
@@ -92,8 +98,10 @@ body {
    with the viewport instead of staying locked to a phone width. */
 .app-container {
   width: 100%;
-  min-height: 100vh;
+  height: 100dvh;
+  max-height: 100dvh;
   min-height: 100dvh;
+  overflow: hidden;
   background: var(--card-bg);
   margin-inline: auto;
 }
