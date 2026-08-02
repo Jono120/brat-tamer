@@ -1,7 +1,14 @@
 # CareStickers Application
 
 > [!IMPORTANT]
-> **In development** — CareStickers is still in active development. Features, APIs, and hosting may change before a stable release.
+> **In development** — CareStickers is still in active development. So there might be features, APIs, and hosting changes before a stable release.
+> We will protect your privacy with the application storage and never share any details to third parties or internally unless you are providing bug information.
+
+> [!TIP]
+> **Support development** — CareStickers is still in active development. If the app helps you or your whānau, you can help fund ongoing work if you would like to support a solo team consider using:
+>
+> - [Ko-fi](https://ko-fi.com/jono420)
+> - [Buy Me a Coffee](https://www.buymeacoffee.com/jono420)
 
 
 [![Supabase Deployment](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml/badge.svg)](https://github.com/Jono120/brat-tamer/actions/workflows/supabase.yml)
@@ -10,14 +17,11 @@
 Welcome to CareStickers, this is a social self-care tracking app: set personal and community goals, earn stickers, share progress with friends, and stay motivated together. You can be part of a team or a team admin for your friends or family.
 
 
-> We will protect your privacy with the application storage and never share any details to third parties or internally unless you are providing bug information.
-
-
 <p align="center">
   <img
     src="docs/images/carestickers_homeWeb-User.png"
     alt="CareStickers home screen — personal goals and daily progress"
-    width="400"
+    width="450"
   />
 </p>
 
